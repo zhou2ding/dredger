@@ -1,0 +1,25 @@
+package main
+
+import (
+	"gorm.io/driver/mysql"
+	"gorm.io/gen"
+	"gorm.io/gorm"
+)
+
+type Querier interface {
+	FilterWithNameAndRole(name, role string) ([]gen.T, error)
+}
+
+func main() {
+	g := gen.NewGenerator(gen.Config{
+		OutPath: "./dao",
+		Mode:    gen.WithoutContext | gen.WithDefaultQuery | gen.WithQueryInterface, // generate mode
+	})
+
+	gormdb, _ := gorm.Open(mysql.Open("root:5023152@(36.133.97.26:26033)/dredger?charset=utf8mb4&parseTime=True&loc=Local"))
+	g.UseDB(gormdb)
+
+	g.ApplyBasic(g.GenerateAllTable()...)
+
+	g.Execute()
+}
