@@ -18,21 +18,14 @@ func NewHandler(svc *service.Service) *Handler {
 }
 
 func (h *Handler) ImportData(c *gin.Context) {
-	fh, err := c.FormFile("file")
-	if err != nil {
+	var req importDataRequest
+	if err := c.ShouldBind(&req); err != nil {
 		logger.Logger.Errorf("获取上传的文件失败: %v", err)
 		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
 		return
 	}
 
-	shipName := c.PostForm("shipName")
-	if shipName == "" {
-		logger.Logger.Warn("shipName为空")
-		c.JSON(http.StatusBadRequest, fail(errBadRequest, errBadRequest.String()))
-		return
-	}
-
-	file, err := fh.Open()
+	file, err := req.File.Open()
 	if err != nil {
 		logger.Logger.Errorf("无法打开文件: %v", err)
 		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
@@ -40,7 +33,7 @@ func (h *Handler) ImportData(c *gin.Context) {
 	}
 	defer file.Close()
 
-	rows, err := h.svc.ImportData(file, shipName)
+	rows, err := h.svc.ImportData(file, req.ShipName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errBadRequest, err.Error()))
 		return
@@ -49,19 +42,15 @@ func (h *Handler) ImportData(c *gin.Context) {
 }
 
 func (h *Handler) GetShiftStats(c *gin.Context) {
-	var query struct {
-		ShipName  string `form:"ship_name" binding:"required"`
-		StartTime string `form:"start_time" binding:"required"`
-		EndTime   string `form:"end_time" binding:"required"`
-	}
-
+	var query commonRequest
 	if err := c.ShouldBindQuery(&query); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		logger.Logger.Errorf("请求参数有误: %v", err)
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
 		return
 	}
 
-	start, _ := time.Parse(time.RFC3339, query.StartTime)
-	end, _ := time.Parse(time.RFC3339, query.EndTime)
+	start, _ := time.Parse(time.DateOnly, query.StartDate)
+	end, _ := time.Parse(time.DateOnly, query.EndDate)
 
 	stats, err := h.svc.GetShiftStats(query.ShipName, start, end)
 	if err != nil {

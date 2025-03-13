@@ -6,12 +6,20 @@ type ImportDataResult struct {
 	ImportedRows int `json:"importedRows"`
 }
 
-type ShiftStat struct {
-	Shift             string  `json:"shift"`
-	Duration          float64 `json:"duration"`
-	TotalProduction   float64 `json:"total_production"`
-	EnergyConsumption float64 `json:"energy_consumption"`
-}
+type (
+	ShiftStat struct {
+		ShiftName       string    `json:"shiftName"`
+		BeginTime       time.Time `json:"beginTime"`
+		EndTime         time.Time `json:"endTime"`
+		WorkDuration    float64   `json:"workDuration"`
+		TotalProduction float64   `json:"totalProduction"`
+		TotalEnergy     float64   `json:"totalEnergy"`
+	}
+	Key struct {
+		Date  string
+		Shift int
+	}
+)
 
 type ParameterStat struct {
 	Mean     float64  `json:"mean"`
