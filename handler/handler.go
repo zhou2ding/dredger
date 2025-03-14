@@ -51,37 +51,44 @@ func (h *Handler) GetShiftStats(c *gin.Context) {
 
 	start, _ := time.Parse(time.DateOnly, query.StartDate)
 	end, _ := time.Parse(time.DateOnly, query.EndDate)
-
-	stats, err := h.svc.GetShiftStats(query.ShipName, start, end)
+	stats, err := h.svc.GetShiftStats(query.ShipName, start.UnixMilli(), end.UnixMilli())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, stats)
+	c.JSON(http.StatusOK, success(stats))
 }
 
 func (h *Handler) GetOptimalShift(c *gin.Context) {
-	var query struct {
-		ShipName  string `form:"ship_name" binding:"required"`
-		StartTime string `form:"start_time" binding:"required"`
-		EndTime   string `form:"end_time" binding:"required"`
-		Metric    string `form:"metric" binding:"required"`
-	}
-
+	var query getOptimalShiftRequest
 	if err := c.ShouldBindQuery(&query); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
 		return
 	}
 
-	start, _ := time.Parse(time.RFC3339, query.StartTime)
-	end, _ := time.Parse(time.RFC3339, query.EndTime)
+	start, _ := time.Parse(time.DateOnly, query.StartDate)
+	end, _ := time.Parse(time.DateOnly, query.EndDate)
 
-	result, err := h.svc.AnalyzeOptimalShift(query.ShipName, start, end, query.Metric)
+	result, err := h.svc.GetOptimalShift(query.ShipName, query.Metric, start.UnixMilli(), end.UnixMilli())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, success(result))
+}
+
+func (h *Handler) GetShipList(c *gin.Context) {
+	ships, err := h.svc.GetShipList()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, success(ships))
+}
+
+func (h *Handler) GetColumns(c *gin.Context) {
+	columns := h.svc.GetColumns()
+	c.JSON(http.StatusOK, success(columns))
 }

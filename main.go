@@ -53,6 +53,9 @@ func SetupRouter(svc *service.Service) *gin.Engine {
 	api := r.Group("/v1")
 	{
 		api.POST("/data/import", h.ImportData)
+		api.GET("/shifts/statistics", h.GetShiftStats)
+		api.GET("/data/column/list", h.GetColumns)
+		api.GET("/ship/list", h.GetShipList)
 	}
 
 	return r

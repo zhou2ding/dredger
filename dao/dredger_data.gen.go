@@ -29,7 +29,7 @@ func newDredgerDatum(db *gorm.DB, opts ...gen.DOOption) dredgerDatum {
 	_dredgerDatum.ALL = field.NewAsterisk(tableName)
 	_dredgerDatum.ID = field.NewInt64(tableName, "id")
 	_dredgerDatum.ShipName = field.NewString(tableName, "ship_name")
-	_dredgerDatum.RecordTime = field.NewString(tableName, "record_time")
+	_dredgerDatum.RecordTime = field.NewInt64(tableName, "record_time")
 	_dredgerDatum.LeftEarDraft = field.NewFloat64(tableName, "left_ear_draft")
 	_dredgerDatum.UnderwaterPumpSuctionSealPressure = field.NewFloat64(tableName, "underwater_pump_suction_seal_pressure")
 	_dredgerDatum.UnderwaterPumpShaftSealPressure = field.NewFloat64(tableName, "underwater_pump_shaft_seal_pressure")
@@ -157,7 +157,7 @@ type dredgerDatum struct {
 	ALL                               field.Asterisk
 	ID                                field.Int64   // 主键id
 	ShipName                          field.String  // 船名
-	RecordTime                        field.String  // 时间
+	RecordTime                        field.Int64   // 时间
 	LeftEarDraft                      field.Float64 // 左耳轴吃水(m)
 	UnderwaterPumpSuctionSealPressure field.Float64 // 水下泵吸入端封水压力(bar)
 	UnderwaterPumpShaftSealPressure   field.Float64 // 水下泵轴端封水压力(bar)
@@ -290,7 +290,7 @@ func (d *dredgerDatum) updateTableName(table string) *dredgerDatum {
 	d.ALL = field.NewAsterisk(table)
 	d.ID = field.NewInt64(table, "id")
 	d.ShipName = field.NewString(table, "ship_name")
-	d.RecordTime = field.NewString(table, "record_time")
+	d.RecordTime = field.NewInt64(table, "record_time")
 	d.LeftEarDraft = field.NewFloat64(table, "left_ear_draft")
 	d.UnderwaterPumpSuctionSealPressure = field.NewFloat64(table, "underwater_pump_suction_seal_pressure")
 	d.UnderwaterPumpShaftSealPressure = field.NewFloat64(table, "underwater_pump_shaft_seal_pressure")

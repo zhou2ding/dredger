@@ -2,6 +2,11 @@ package service
 
 import "time"
 
+const (
+	MaxProduction = "maxProduction"
+	MinEnergy     = "minEnergy"
+)
+
 type ImportDataResult struct {
 	ImportedRows int `json:"importedRows"`
 }
@@ -27,19 +32,32 @@ type ParameterStat struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-type ParameterStats struct {
-	SwingSpeed     ParameterStat `json:"swing_speed"`
-	CarriageTravel ParameterStat `json:"carriage_travel"`
-	CutterDepth    ParameterStat `json:"cutter_depth"`
-	PumpRPM        ParameterStat `json:"pump_rpm"`
-	Concentration  ParameterStat `json:"concentration"`
-	FlowRate       ParameterStat `json:"flow_rate"`
-}
-
-type OptimalAnalysis struct {
-	OptimalShift string         `json:"optimal_shift"`
-	Parameters   ParameterStats `json:"parameters"`
-}
+type (
+	OptimalShift struct {
+		ShiftName       string         `json:"shiftName"`
+		Parameters      ParameterStats `json:"parameters"`
+		TotalEnergy     float64        `json:"-"`
+		TotalProduction float64        `json:"-"`
+	}
+	ParameterStats struct {
+		HorizontalSpeed HorizontalSpeed `json:"horizontalSpeed"`
+		CarriageTravel  Parameter       `json:"carriageTravel"`
+		CutterDepth     Parameter       `json:"cutterDepth"`
+		SPumpRpm        Parameter       `json:"sPumpRpm"`
+		Concentration   Parameter       `json:"concentration"`
+		Flow            Parameter       `json:"flow"`
+	}
+	HorizontalSpeed struct {
+		Parameter
+		Warning string `json:"warning"`
+	}
+	Parameter struct {
+		Min      int `json:"min"`
+		Max      int `json:"max"`
+		Average  int `json:"average"`
+		Variance int `json:"variance"`
+	}
+)
 
 type ReportParams struct {
 	ShipName  string      `json:"ship_name"`

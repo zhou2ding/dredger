@@ -31,7 +31,7 @@ type commonRequest struct {
 	EndDate   string `form:"endDate" binding:"required,datetime=2006-01-02,after=StartDate"`
 }
 
-type getBestShiftRequest struct {
+type getOptimalShiftRequest struct {
 	commonRequest
 	Metric string `form:"metric" binding:"required,oneof=maxProduction minEnergy"`
 }

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"github.com/xuri/excelize/v2"
 	"io"
-	"log"
 	"math"
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"dredger/model"
@@ -68,25 +68,36 @@ func (s *Service) ImportData(file io.Reader, shipName string) (*ImportDataResult
 			continue
 		}
 		data := model.DredgerDatum{ShipName: shipName}
-		v := reflect.ValueOf(&data).Elem()
+		elem := reflect.ValueOf(&data).Elem()
 
 		valid := true
 		for i, fieldName := range fieldNames {
 			cellVal := row[i+1]
-			field := v.FieldByName(fieldName)
+			field := elem.FieldByName(fieldName)
 			if !field.CanSet() {
 				valid = false
 				break
+			}
+			if i == 0 {
+				// 第一个字段是时间戳
+				timestamp, err := time.Parse(time.DateTime, cellVal)
+				if err != nil {
+					logger.Logger.Warnf("第 %d 行字段 %s 转换失败: %v", rowNum+2, fieldName, err)
+					valid = false
+				} else {
+					field.SetInt(timestamp.UnixMilli())
+				}
+				continue
 			}
 			switch field.Kind() {
 			case reflect.Float64, reflect.Float32:
 				if num, err := strconv.ParseFloat(cellVal, 64); err == nil {
 					field.SetFloat(num)
 				} else {
-					log.Printf("第 %d 行字段 %s 转换失败: %v", rowNum+2, fieldName, err)
+					logger.Logger.Warnf("第 %d 行字段 %s 转换失败: %v", rowNum+2, fieldName, err)
 					valid = false
 				}
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			case reflect.Int32, reflect.Int64:
 				if num, err := strconv.ParseInt(cellVal, 10, 64); err == nil {
 					field.SetInt(num)
 				} else {
@@ -131,17 +142,11 @@ func (s *Service) ImportData(file io.Reader, shipName string) (*ImportDataResult
 	return &ImportDataResult{imported}, nil
 }
 
-func (s *Service) GetShiftStats(shipName string, startTime, endTime time.Time) ([]ShiftStat, error) {
-	// 格式化查询时间范围
-	startDate := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, startTime.Location())
-	stopDate := time.Date(endTime.Year(), endTime.Month(), endTime.Day(), 23, 59, 59, 0, endTime.Location())
-	startStr := startDate.Format(time.DateTime)
-	endStr := stopDate.Format(time.DateTime)
-
+func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]ShiftStat, error) {
 	// 查询符合条件的记录
 	var records []model.DredgerDatum
 	err := s.db.Where("ship_name = ?", shipName).
-		Where("record_time BETWEEN ? AND ?", startStr, endStr).
+		Where("record_time BETWEEN ? AND ?", startTime, endTime).
 		Find(&records).Error
 	if err != nil {
 		logger.Logger.Errorf("查询班组统计数据失败: %v", err)
@@ -151,10 +156,7 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime time.Time) (
 	// 分组统计
 	groups := make(map[int][]model.DredgerDatum)
 	for _, record := range records {
-		t, err := time.Parse(time.DateTime, record.RecordTime)
-		if err != nil {
-			continue // 跳过解析失败的记录
-		}
+		t := time.UnixMilli(record.RecordTime)
 		hour := t.Hour()
 		switch {
 		case hour >= 0 && hour < 6:
@@ -222,6 +224,123 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime time.Time) (
 	return stats, nil
 }
 
-func (s *Service) AnalyzeOptimalShift(shipName string, startTime, endTime time.Time, metric string) (OptimalAnalysis, error) {
-	return OptimalAnalysis{}, nil
+func (s *Service) GetOptimalShift(shipName, metric string, startTime, endTime int64) (*OptimalShift, error) {
+	// 查询符合条件的记录
+	var records []model.DredgerDatum
+	err := s.db.Where("ship_name = ?", shipName).
+		Where("record_time BETWEEN ? AND ?", startTime, endTime).
+		Find(&records).Error
+	if err != nil {
+		logger.Logger.Errorf("查询班组数据失败: %v", err)
+		return nil, err
+	}
+
+	// 分组统计
+	groups := make(map[int][]model.DredgerDatum)
+	for _, record := range records {
+		t := time.UnixMilli(record.RecordTime)
+		hour := t.Hour()
+		switch {
+		case hour >= 0 && hour < 6:
+			groups[1] = append(groups[1], record)
+		case hour >= 6 && hour < 12:
+			groups[2] = append(groups[2], record)
+		case hour >= 12 && hour < 18:
+			groups[3] = append(groups[3], record)
+		default:
+			groups[4] = append(groups[4], record)
+		}
+	}
+
+	optimalShift := OptimalShift{}
+	for shift := 1; shift <= 4; shift++ {
+		shiftRecords, exists := groups[shift]
+		if !exists || len(shiftRecords) == 0 {
+			continue
+		}
+
+		// 计算班次时间范围
+		var minTime, maxTime time.Time
+		duration := durationMinutes(minTime, maxTime, shiftRecords)
+		calculateParameters(shiftRecords)
+		if metric == MaxProduction {
+			// 计算产量总量
+			var totalOutputRate float64
+			for _, r := range shiftRecords {
+				totalOutputRate += r.OutputRate
+			}
+			avgOutputRate := totalOutputRate / float64(len(shiftRecords))
+			totalProduction := avgOutputRate * (duration / 60)
+
+			if totalProduction > optimalShift.TotalProduction {
+				optimalShift.TotalProduction = totalProduction
+				optimalShift.ShiftName = shiftName(shift)
+				optimalShift.Parameters = ParameterStats{
+					// 计算参数
+				}
+			}
+
+		} else if metric == MinEnergy {
+			// 计算能耗
+			var totalEnergy float64
+			for _, r := range shiftRecords {
+				P1 := r.UnderwaterPumpSuctionVacuum
+				P2 := r.IntermediatePressure
+				P3 := r.BoosterPumpDischargePressure
+				Q := r.FlowRate
+
+				pw1 := 0.8 * Q * (P2 - P1)
+				pw2 := 0.8 * Q * (P3 - P2)
+				totalEnergy += (pw1 + pw2) * (duration / 60)
+			}
+
+			if totalEnergy < optimalShift.TotalEnergy {
+				optimalShift.TotalEnergy = totalEnergy
+				optimalShift.ShiftName = shiftName(shift)
+				optimalShift.Parameters = ParameterStats{
+					// 计算参数
+				}
+			}
+		}
+	}
+
+	return &optimalShift, nil
+}
+
+func (s *Service) GetShipList() ([]string, error) {
+	var records []model.DredgerDatum
+	err := s.db.Distinct("ship_name").Find(&records).Error
+	if err != nil {
+		logger.Logger.Errorf("查询船名列表出错: %v", err)
+		return nil, err
+	}
+
+	ships := make([]string, 0, len(records))
+	for _, record := range records {
+		ships = append(ships, record.ShipName)
+	}
+	return ships, nil
+}
+
+func (s *Service) GetColumns() []string {
+	refTypes := reflect.TypeOf(model.DredgerDatum{})
+	excludes := map[string]bool{
+		"ID":         true,
+		"ShipName":   true,
+		"RecordTime": true,
+	}
+
+	var columns []string
+	for i := 0; i < refTypes.NumField(); i++ {
+		field := refTypes.Field(i)
+
+		tag := field.Tag.Get("gorm")
+		parts := strings.Split(tag, ";")
+		column := strings.TrimPrefix(parts[0], "column:")
+		if !excludes[field.Name] {
+			columns = append(columns, column)
+		}
+	}
+
+	return columns
 }
