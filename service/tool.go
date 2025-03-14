@@ -2,7 +2,6 @@ package service
 
 import (
 	"dredger/model"
-	"math"
 	"time"
 )
 
@@ -19,7 +18,7 @@ func shiftName(shift int) string {
 	}
 }
 
-func durationMinutes(minTime, maxTime time.Time, records []model.DredgerDatum) float64 {
+func durationMinutes(minTime, maxTime time.Time, records []*model.DredgerDatum) float64 {
 	for i, r := range records {
 		t := time.UnixMilli(r.RecordTime)
 		if i == 0 || t.Before(minTime) {
@@ -33,7 +32,7 @@ func durationMinutes(minTime, maxTime time.Time, records []model.DredgerDatum) f
 }
 
 // 核心参数统计
-func calculateParameters(records []model.DredgerDatum) ParameterStats {
+func calParams(records []*model.DredgerDatum) ParameterStats {
 	var (
 		horizontalSpeeds = make([]float64, len(records))
 		carriageTravels  = make([]float64, len(records))
@@ -89,39 +88,9 @@ func calculateStats(data []float64) Parameter {
 	variance := (sumSquares / n) - (mean * mean)
 
 	return Parameter{
-		Min:      int(math.Round(minVal)),
-		Max:      int(math.Round(maxVal)),
-		Average:  int(math.Round(mean)),
-		Variance: int(math.Round(variance)),
-	}
-}
-
-// 能耗计算
-func calculateEnergy(stats ParameterStats, duration float64) float64 {
-	P1 := stats.HorizontalSpeed.Average
-	P2 := stats.SPumpRpm.Average
-	P3 := stats.Concentration.Average
-	Q := stats.Flow.Average
-
-	pw1 := 0.8 * float64(Q) * (float64(P2 - P1))
-	pw2 := 0.8 * float64(Q) * (float64(P3 - P2))
-	return (pw1 + pw2) * (duration / 60)
-}
-
-// 最优班次更新逻辑
-func updateOptimalShift(optimal *OptimalShift, shift int, value float64, stats ParameterStats, metricType string) {
-	switch metricType {
-	case "production":
-		if value > optimal.TotalProduction {
-			optimal.TotalProduction = value
-			optimal.ShiftName = shiftName(shift)
-			optimal.Parameters = stats
-		}
-	case "energy":
-		if value < optimal.TotalEnergy || optimal.TotalEnergy == 0 {
-			optimal.TotalEnergy = value
-			optimal.ShiftName = shiftName(shift)
-			optimal.Parameters = stats
-		}
+		Min:      minVal,
+		Max:      maxVal,
+		Average:  mean,
+		Variance: variance,
 	}
 }

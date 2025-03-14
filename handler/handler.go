@@ -92,3 +92,39 @@ func (h *Handler) GetColumns(c *gin.Context) {
 	columns := h.svc.GetColumns()
 	c.JSON(http.StatusOK, success(columns))
 }
+
+func (h *Handler) GetShiftPie(c *gin.Context) {
+	var query getShiftPieRequest
+	if err := c.ShouldBindQuery(&query); err != nil {
+		logger.Logger.Errorf("请求参数有误: %v", err)
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
+		return
+	}
+
+	start, _ := time.Parse(time.DateOnly, query.StartDate)
+	end, _ := time.Parse(time.DateOnly, query.EndDate)
+	pie, err := h.svc.GetShiftPie(query.ShipName, start.UnixMilli(), end.UnixMilli())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, success(pie))
+}
+
+func (h *Handler) GetHistoryData(c *gin.Context) {
+	var query getHistoryDataRequest
+	if err := c.ShouldBindQuery(&query); err != nil {
+		logger.Logger.Errorf("请求参数有误: %v", err)
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
+		return
+	}
+
+	start, _ := time.Parse(time.DateOnly, query.StartDate)
+	end, _ := time.Parse(time.DateOnly, query.EndDate)
+	dataList, err := h.svc.GetColumnDataList(query.Column, query.ShipName, start.UnixMilli(), end.UnixMilli())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, success(dataList))
+}

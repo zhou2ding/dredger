@@ -142,9 +142,9 @@ func (s *Service) ImportData(file io.Reader, shipName string) (*ImportDataResult
 	return &ImportDataResult{imported}, nil
 }
 
-func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]ShiftStat, error) {
+func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*ShiftStat, error) {
 	// 查询符合条件的记录
-	var records []model.DredgerDatum
+	var records []*model.DredgerDatum
 	err := s.db.Where("ship_name = ?", shipName).
 		Where("record_time BETWEEN ? AND ?", startTime, endTime).
 		Find(&records).Error
@@ -154,7 +154,7 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]Sh
 	}
 
 	// 分组统计
-	groups := make(map[int][]model.DredgerDatum)
+	groups := make(map[int][]*model.DredgerDatum)
 	for _, record := range records {
 		t := time.UnixMilli(record.RecordTime)
 		hour := t.Hour()
@@ -171,7 +171,7 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]Sh
 	}
 
 	// 生成统计结果
-	var stats []ShiftStat
+	var stats []*ShiftStat
 	for shift := 1; shift <= 4; shift++ {
 		shiftRecords, exists := groups[shift]
 		if !exists || len(shiftRecords) == 0 {
@@ -203,7 +203,7 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]Sh
 			totalEnergy += (pw1 + pw2) * (duration / 60)
 		}
 
-		stats = append(stats, ShiftStat{
+		stats = append(stats, &ShiftStat{
 			ShiftName:       shiftName(shift),
 			BeginTime:       minTime,
 			EndTime:         maxTime,
@@ -226,7 +226,7 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]Sh
 
 func (s *Service) GetOptimalShift(shipName, metric string, startTime, endTime int64) (*OptimalShift, error) {
 	// 查询符合条件的记录
-	var records []model.DredgerDatum
+	var records []*model.DredgerDatum
 	err := s.db.Where("ship_name = ?", shipName).
 		Where("record_time BETWEEN ? AND ?", startTime, endTime).
 		Find(&records).Error
@@ -236,7 +236,7 @@ func (s *Service) GetOptimalShift(shipName, metric string, startTime, endTime in
 	}
 
 	// 分组统计
-	groups := make(map[int][]model.DredgerDatum)
+	groups := make(map[int][]*model.DredgerDatum)
 	for _, record := range records {
 		t := time.UnixMilli(record.RecordTime)
 		hour := t.Hour()
@@ -262,7 +262,6 @@ func (s *Service) GetOptimalShift(shipName, metric string, startTime, endTime in
 		// 计算班次时间范围
 		var minTime, maxTime time.Time
 		duration := durationMinutes(minTime, maxTime, shiftRecords)
-		calculateParameters(shiftRecords)
 		if metric == MaxProduction {
 			// 计算产量总量
 			var totalOutputRate float64
@@ -275,11 +274,8 @@ func (s *Service) GetOptimalShift(shipName, metric string, startTime, endTime in
 			if totalProduction > optimalShift.TotalProduction {
 				optimalShift.TotalProduction = totalProduction
 				optimalShift.ShiftName = shiftName(shift)
-				optimalShift.Parameters = ParameterStats{
-					// 计算参数
-				}
+				optimalShift.Parameters = calParams(shiftRecords)
 			}
-
 		} else if metric == MinEnergy {
 			// 计算能耗
 			var totalEnergy float64
@@ -297,9 +293,7 @@ func (s *Service) GetOptimalShift(shipName, metric string, startTime, endTime in
 			if totalEnergy < optimalShift.TotalEnergy {
 				optimalShift.TotalEnergy = totalEnergy
 				optimalShift.ShiftName = shiftName(shift)
-				optimalShift.Parameters = ParameterStats{
-					// 计算参数
-				}
+				optimalShift.Parameters = calParams(shiftRecords)
 			}
 		}
 	}
@@ -322,7 +316,7 @@ func (s *Service) GetShipList() ([]string, error) {
 	return ships, nil
 }
 
-func (s *Service) GetColumns() []string {
+func (s *Service) GetColumns() []*ColumnInfo {
 	refTypes := reflect.TypeOf(model.DredgerDatum{})
 	excludes := map[string]bool{
 		"ID":         true,
@@ -330,17 +324,125 @@ func (s *Service) GetColumns() []string {
 		"RecordTime": true,
 	}
 
-	var columns []string
+	var columns []*ColumnInfo
 	for i := 0; i < refTypes.NumField(); i++ {
 		field := refTypes.Field(i)
 
 		tag := field.Tag.Get("gorm")
 		parts := strings.Split(tag, ";")
 		column := strings.TrimPrefix(parts[0], "column:")
+		var columnCN string
+		for _, part := range parts[1:] {
+			if strings.HasPrefix(part, "comment:") {
+				columnCN = strings.TrimPrefix(part, "comment:")
+				break
+			}
+		}
 		if !excludes[field.Name] {
-			columns = append(columns, column)
+			columns = append(columns, &ColumnInfo{
+				ColumnName:        column,
+				ColumnChineseName: columnCN,
+			})
 		}
 	}
 
 	return columns
+}
+
+func (s *Service) GetShiftPie(shipName string, startTime, endTime int64) ([]*ShiftPie, error) {
+	// 查询符合条件的记录
+	var records []*model.DredgerDatum
+	err := s.db.Where("ship_name = ?", shipName).
+		Where("record_time BETWEEN ? AND ?", startTime, endTime).
+		Find(&records).Error
+	if err != nil {
+		logger.Logger.Errorf("查询班组统计数据失败: %v", err)
+		return nil, err
+	}
+
+	// 分组统计
+	groups := make(map[int][]*model.DredgerDatum)
+	for _, record := range records {
+		t := time.UnixMilli(record.RecordTime)
+		hour := t.Hour()
+		switch {
+		case hour >= 0 && hour < 6:
+			groups[1] = append(groups[1], record)
+		case hour >= 6 && hour < 12:
+			groups[2] = append(groups[2], record)
+		case hour >= 12 && hour < 18:
+			groups[3] = append(groups[3], record)
+		default:
+			groups[4] = append(groups[4], record)
+		}
+	}
+
+	// 生成统计结果
+	var pies []*ShiftPie
+	for shift := 1; shift <= 4; shift++ {
+		shiftRecords, exists := groups[shift]
+		if !exists || len(shiftRecords) == 0 {
+			continue
+		}
+
+		// 计算班次时间范围
+		var minTime, maxTime time.Time
+		duration := durationMinutes(minTime, maxTime, shiftRecords)
+
+		// 计算产量总量
+		var totalOutputRate float64
+		for _, r := range shiftRecords {
+			totalOutputRate += r.OutputRate
+		}
+		avgOutputRate := totalOutputRate / float64(len(shiftRecords))
+		totalProduction := avgOutputRate * (duration / 60)
+
+		// 计算能耗
+		var totalEnergy float64
+		for _, r := range shiftRecords {
+			P1 := r.UnderwaterPumpSuctionVacuum
+			P2 := r.IntermediatePressure
+			P3 := r.BoosterPumpDischargePressure
+			Q := r.FlowRate
+
+			pw1 := 0.8 * Q * (P2 - P1)
+			pw2 := 0.8 * Q * (P3 - P2)
+			totalEnergy += (pw1 + pw2) * (duration / 60)
+		}
+
+		pies = append(pies, &ShiftPie{
+			ShiftName: shiftName(shift),
+			WorkData: &PieData{
+				TotalProduction: totalProduction,
+				TotalEnergy:     totalEnergy,
+				WorkDuration:    duration,
+			},
+		})
+	}
+
+	return pies, nil
+}
+
+func (s *Service) GetColumnDataList(columnName, shipName string, startTime, endTime int64) ([]*ColumnData, error) {
+	var records []map[string]any
+	err := s.db.Select("record_time").
+		Select(columnName).
+		Where("ship_name = ?", shipName).
+		Where("record_time BETWEEN ? AND ?", startTime, endTime).Scan(&records).Error
+	if err != nil {
+		logger.Logger.Errorf("查询 %s 历史数据失败: %v", columnName, err)
+		return nil, err
+	}
+
+	var dataList []*ColumnData
+	for _, record := range records {
+		t := time.UnixMilli(record["record_time"].(int64)).Format(time.DateTime)
+		v := record[columnName]
+		dataList = append(dataList, &ColumnData{
+			Timestamp: t,
+			Value:     v,
+		})
+	}
+
+	return dataList, nil
 }

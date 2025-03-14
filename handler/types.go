@@ -36,6 +36,10 @@ type getOptimalShiftRequest struct {
 	Metric string `form:"metric" binding:"required,oneof=maxProduction minEnergy"`
 }
 
+type getShiftPieRequest struct {
+	commonRequest
+}
+
 type getHistoryDataRequest struct {
 	commonRequest
 	Column string `form:"column" binding:"required"`

@@ -158,111 +158,111 @@ type dredgerDatum struct {
 	ID                                field.Int64   // 主键id
 	ShipName                          field.String  // 船名
 	RecordTime                        field.Int64   // 时间
-	LeftEarDraft                      field.Float64 // 左耳轴吃水(m)
-	UnderwaterPumpSuctionSealPressure field.Float64 // 水下泵吸入端封水压力(bar)
-	UnderwaterPumpShaftSealPressure   field.Float64 // 水下泵轴端封水压力(bar)
-	RightEarDraft                     field.Float64 // 右耳轴吃水(m)
-	UnderwaterPumpSpeed               field.Float64 // 水下泵转速(rpm)
-	FlowVelocity                      field.Float64 // 流速(m/s)
-	Density                           field.Float64 // 密度(t/m3)
-	UnderwaterPumpMotorCurrent        field.Float64 // 水下泵电机电流(A)
-	TrolleyTravel                     field.Float64 // 台车行程(m)
-	CutterSpeed                       field.Float64 // 绞刀转速(rpm)
-	UnderwaterPumpSuctionVacuum       field.Float64 // 水下泵吸入真空(bar)
-	BridgeAngle                       field.Float64 // 桥架角度(°)
-	CompassAngle                      field.Float64 // 罗经角度(°)
-	Gps1X                             field.Float64 // GPS1_X(°)
-	Gps1Y                             field.Float64 // GPS1_Y(°)
-	Gps1Heading                       field.Float64 // GPS1航向(°)
-	Gps1Speed                         field.Float64 // GPS1航速(kn)
-	TideLevel                         field.Float64 // 潮位(m)
-	WaterDensity                      field.Float64 // 水密度(kg/m3)
+	LeftEarDraft                      field.Float64 // 左耳轴吃水
+	UnderwaterPumpSuctionSealPressure field.Float64 // 水下泵吸入端封水压力
+	UnderwaterPumpShaftSealPressure   field.Float64 // 水下泵轴端封水压力
+	RightEarDraft                     field.Float64 // 右耳轴吃水
+	UnderwaterPumpSpeed               field.Float64 // 水下泵转速
+	FlowVelocity                      field.Float64 // 流速
+	Density                           field.Float64 // 密度
+	UnderwaterPumpMotorCurrent        field.Float64 // 水下泵电机电流
+	TrolleyTravel                     field.Float64 // 台车行程
+	CutterSpeed                       field.Float64 // 绞刀转速
+	UnderwaterPumpSuctionVacuum       field.Float64 // 水下泵吸入真空
+	BridgeAngle                       field.Float64 // 桥架角度
+	CompassAngle                      field.Float64 // 罗经角度
+	Gps1X                             field.Float64 // GPS1_X
+	Gps1Y                             field.Float64 // GPS1_Y
+	Gps1Heading                       field.Float64 // GPS1航向
+	Gps1Speed                         field.Float64 // GPS1航速
+	TideLevel                         field.Float64 // 潮位
+	WaterDensity                      field.Float64 // 水密度
 	FieldSlurryDensity                field.Float64 // 现场泥浆比重
 	CompassRadian                     field.Float64 // 罗经弧度
-	Gps1Latitude                      field.Float64 // GPS1_纬度(°)
-	Gps1Longitude                     field.Float64 // GPS1_经度(°)
-	EarDraft                          field.Float64 // 耳轴吃水(m)
-	TransverseSpeed                   field.Float64 // 横移速度(m/min)
-	HourlyOutputRate                  field.Float64 // 小时产量率(m3/h)
-	RotationRadius                    field.Float64 // 旋转半径(m)
-	CutterX                           field.Float64 // 绞刀x(m)
-	CutterY                           field.Float64 // 绞刀y(m)
-	OutletFlowVelocity                field.Float64 // 出口流速(m/s)
-	Concentration                     field.Float64 // 浓度(%)
-	FlowRate                          field.Float64 // 流量(m3/h)
-	CutterSystemPressure              field.Float64 // 绞刀系统工作压力(bar)
-	BridgeWinchPressure               field.Float64 // 桥架绞车压力(bar)
-	VacuumReleaseValvePressure        field.Float64 // 真空释放阀压力(bar)
-	MainPilePressure                  field.Float64 // 主钢桩工作压力(bar)
-	Gps2X                             field.Float64 // GPS2_X(°)
-	Gps2Y                             field.Float64 // GPS2_Y(°)
-	Gps2Heading                       field.Float64 // GPS2航向(°)
-	Gps2Speed                         field.Float64 // GPS2航速(节)
-	NaturalSoilDensity                field.Float64 // 天然土密度(kg/m3)
-	Gps2Latitude                      field.Float64 // GPS2_纬度(°)
-	Gps2Longitude                     field.Float64 // GPS2_经度(°)
-	LeftDensity                       field.Float64 // 左密度(kg/m3)
-	LeftFlowVelocity                  field.Float64 // 左流速(m/s)
-	SlurryOutput                      field.Float64 // 泥浆产量(m3)
-	DrySoilOutput                     field.Float64 // 干土产量(m3)
-	DryTonOutput                      field.Float64 // 干吨土方量(m3)
-	OutputRate                        field.Float64 // 产量率(m3/h)
-	CurrentShiftOutputRate            field.Float64 // 当前班产量率(m3/h)
-	CurrentShiftOutput                field.Float64 // 当前班产量(m3)
-	TransverseDistance                field.Float64 // 横移距离(m)
+	Gps1Latitude                      field.Float64 // GPS1_纬度
+	Gps1Longitude                     field.Float64 // GPS1_经度
+	EarDraft                          field.Float64 // 耳轴吃水
+	TransverseSpeed                   field.Float64 // 横移速度
+	HourlyOutputRate                  field.Float64 // 小时产量率
+	RotationRadius                    field.Float64 // 旋转半径
+	CutterX                           field.Float64 // 绞刀x
+	CutterY                           field.Float64 // 绞刀y
+	OutletFlowVelocity                field.Float64 // 出口流速
+	Concentration                     field.Float64 // 浓度
+	FlowRate                          field.Float64 // 流量
+	CutterSystemPressure              field.Float64 // 绞刀系统工作压力
+	BridgeWinchPressure               field.Float64 // 桥架绞车压力
+	VacuumReleaseValvePressure        field.Float64 // 真空释放阀压力
+	MainPilePressure                  field.Float64 // 主钢桩工作压力
+	Gps2X                             field.Float64 // GPS2_X
+	Gps2Y                             field.Float64 // GPS2_Y
+	Gps2Heading                       field.Float64 // GPS2航向
+	Gps2Speed                         field.Float64 // GPS2航速
+	NaturalSoilDensity                field.Float64 // 天然土密度
+	Gps2Latitude                      field.Float64 // GPS2_纬度
+	Gps2Longitude                     field.Float64 // GPS2_经度
+	LeftDensity                       field.Float64 // 左密度
+	LeftFlowVelocity                  field.Float64 // 左流速
+	SlurryOutput                      field.Float64 // 泥浆产量
+	DrySoilOutput                     field.Float64 // 干土产量
+	DryTonOutput                      field.Float64 // 干吨土方量
+	OutputRate                        field.Float64 // 产量率
+	CurrentShiftOutputRate            field.Float64 // 当前班产量率(
+	CurrentShiftOutput                field.Float64 // 当前班产量
+	TransverseDistance                field.Float64 // 横移距离
 	CurrentShift                      field.Int32   // 当前班次
-	TransverseAngle                   field.Float64 // 横移角度(综合左右)(°)
-	DailyCumulativeOutput             field.Float64 // 今日累计产量(m3)
-	PreviousDayOutput                 field.Float64 // 昨日产量(m3)
-	CutterDepth                       field.Float64 // 绞刀深度(m)
-	TransverseWinchPressure           field.Float64 // 横移绞车压力(bar)
-	IntermediatePressure              field.Float64 // 水下泵与升压泵中间压力(bar)
-	BoosterPumpDischargePressure      field.Float64 // 升压泵排出压力(bar)
-	BoosterPumpShaftSealPressure      field.Float64 // 升压泵轴端封水压力(bar)
-	BoosterPumpSuctionSealPressure    field.Float64 // 升压泵吸口端封水压力(bar)
+	TransverseAngle                   field.Float64 // 横移角度
+	DailyCumulativeOutput             field.Float64 // 今日累计产量
+	PreviousDayOutput                 field.Float64 // 昨日产量
+	CutterDepth                       field.Float64 // 绞刀深度
+	TransverseWinchPressure           field.Float64 // 横移绞车压力
+	IntermediatePressure              field.Float64 // 水下泵与升压泵中间压力
+	BoosterPumpDischargePressure      field.Float64 // 升压泵排出压力
+	BoosterPumpShaftSealPressure      field.Float64 // 升压泵轴端封水压力
+	BoosterPumpSuctionSealPressure    field.Float64 // 升压泵吸口端封水压力
 	MudPipeDiameter                   field.Float64 // 泥管直径
-	SetDiggingDepth                   field.Float64 // 设定挖深(m)
-	SetOverDiggingDepth               field.Float64 // 设定超深(m)
-	TideStation                       field.Float64 // 潮位站(m)
-	ManualTideLevel                   field.Float64 // 手动输入潮位(m)
+	SetDiggingDepth                   field.Float64 // 设定挖深
+	SetOverDiggingDepth               field.Float64 // 设定超深
+	TideStation                       field.Float64 // 潮位站
+	ManualTideLevel                   field.Float64 // 手动输入潮位
 	TrimAngleSource                   field.Float64 // 横倾纵倾角度来源
 	LoadingSpeed                      field.Float64 // 装载速度
-	EarToBottomDistance               field.Float64 // 耳轴到船底垂直距离(m)
-	AutoTideLevel                     field.Float64 // 自动读入的潮位(m)
-	CuttingAngle                      field.Float64 // 切削角度(°)
-	TransverseDirection               field.Int32   // 横移方向(-1：右/0：无/1：左)
+	EarToBottomDistance               field.Float64 // 耳轴到船底垂直距离
+	AutoTideLevel                     field.Float64 // 自动读入的潮位
+	CuttingAngle                      field.Float64 // 切削角度
+	TransverseDirection               field.Int32   // 横移方向
 	MainPilePivotX                    field.Float64 // 主桩支点x
 	MainPilePivotY                    field.Float64 // 主桩支点y
-	BridgeWaterDepth                  field.Float64 // 绞刀(桥架)水面深度(m)
+	BridgeWaterDepth                  field.Float64 // 绞刀(桥架)水面深度
 	LeftTransverseAnchorDropped       field.Float64 // 左横移锚下锚
 	RightTransverseAnchorDropped      field.Float64 // 右横移锚下锚
 	LeftTransverseAnchorX             field.Float64 // 左横移锚x
 	LeftTransverseAnchorY             field.Float64 // 左横移锚y
 	RightTransverseAnchorX            field.Float64 // 右横移锚x
 	RightTransverseAnchorY            field.Float64 // 右横移锚y
-	LeftTransverseWorklineAngle       field.Float64 // 左横移与工作线角度(°)
-	RightTransverseWorklineAngle      field.Float64 // 右横移与工作线角度(°)
+	LeftTransverseWorklineAngle       field.Float64 // 左横移与工作线角度
+	RightTransverseWorklineAngle      field.Float64 // 右横移与工作线角度
 	Damping                           field.Float64 // 阻尼
-	CuttingThickness                  field.Float64 // 切削厚度(m)
-	AverageConcentration              field.Float64 // 平均浓度(%)
+	CuttingThickness                  field.Float64 // 切削厚度
+	AverageConcentration              field.Float64 // 平均浓度
 	CurrentWorklineDirection          field.Float64 // 当前工作线方向
 	CurrentWorklineStartX             field.Float64 // 当前工作线起点x
 	CurrentWorklineStartY             field.Float64 // 当前工作线起点y
 	CurrentWorklineEndX               field.Float64 // 当前工作线终点x
 	CurrentWorklineEndY               field.Float64 // 当前工作线终点y
 	ShipStatus                        field.Int32   // 船舶状态
-	LeftTransverseAnchorDeviation     field.Float64 // 左横移锚偏离中心线距离(m)
-	RightTransverseAnchorDeviation    field.Float64 // 右横移锚偏离中心线距离(m)
-	CutterDeviation                   field.Float64 // 绞刀偏离中心线距离(m)
-	MainPileDeviation                 field.Float64 // 主桩偏离中心线距离(m)
+	LeftTransverseAnchorDeviation     field.Float64 // 左横移锚偏离中心线距离
+	RightTransverseAnchorDeviation    field.Float64 // 右横移锚偏离中心线距离
+	CutterDeviation                   field.Float64 // 绞刀偏离中心线距离
+	MainPileDeviation                 field.Float64 // 主桩偏离中心线距离
 	EarX                              field.Float64 // 耳轴x
 	EarY                              field.Float64 // 耳轴y
-	PreviousCutterDepth               field.Float64 // 绞刀头点上一次的深度(m)
-	LeftBridgeWinchSpeed              field.Float64 // 左舷桥架绞车速度(接口计算值)(m/min)
-	RightBridgeWinchSpeed             field.Float64 // 右舷桥架绞车速度(接口计算值)(m/min)
-	BridgeSpeed                       field.Float64 // 桥架速度(接口计算值)(m/min)
-	LeftBridgeWinchSpeed2             field.Float64 // 左舷桥架绞车速度2(接口计算值)(m/min)
-	RightBridgeWinchSpeed2            field.Float64 // 右舷桥架绞车速度2(接口计算值)(m/min)
+	PreviousCutterDepth               field.Float64 // 绞刀头点上一次的深度
+	LeftBridgeWinchSpeed              field.Float64 // 左舷桥架绞车速度(接口计算值)
+	RightBridgeWinchSpeed             field.Float64 // 右舷桥架绞车速度(接口计算值)
+	BridgeSpeed                       field.Float64 // 桥架速度(接口计算值)
+	LeftBridgeWinchSpeed2             field.Float64 // 左舷桥架绞车速度2(接口计算值)
+	RightBridgeWinchSpeed2            field.Float64 // 右舷桥架绞车速度2(接口计算值)
 	WindDirection                     field.Float64 // 风向(滤波后)
 	WindSpeed                         field.Float64 // 风速(滤波后)
 	CurrentWorklineDirectionDpm       field.Float64 // 当前工作线方向(自DPM)
@@ -270,8 +270,8 @@ type dredgerDatum struct {
 	CurrentWorklineStartYDpm          field.Float64 // 当前工作线起点y(自DPM)
 	CurrentWorklineEndXDpm            field.Float64 // 当前工作线终点x(自DPM)
 	CurrentWorklineEndYDpm            field.Float64 // 当前工作线终点y(自DPM)
-	PreviousCutterDepthDpm            field.Float64 // 绞刀头点上一次的深度(自DPM)(m)
-	ShipDeviationAngle                field.Float64 // 船体偏移工作线角度(°)
+	PreviousCutterDepthDpm            field.Float64 // 绞刀头点上一次的深度(自DPM)
+	ShipDeviationAngle                field.Float64 // 船体偏移工作线角度
 
 	fieldMap map[string]field.Expr
 }

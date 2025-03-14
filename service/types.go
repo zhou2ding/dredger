@@ -11,20 +11,14 @@ type ImportDataResult struct {
 	ImportedRows int `json:"importedRows"`
 }
 
-type (
-	ShiftStat struct {
-		ShiftName       string    `json:"shiftName"`
-		BeginTime       time.Time `json:"beginTime"`
-		EndTime         time.Time `json:"endTime"`
-		WorkDuration    float64   `json:"workDuration"`
-		TotalProduction float64   `json:"totalProduction"`
-		TotalEnergy     float64   `json:"totalEnergy"`
-	}
-	Key struct {
-		Date  string
-		Shift int
-	}
-)
+type ShiftStat struct {
+	ShiftName       string    `json:"shiftName"`
+	BeginTime       time.Time `json:"beginTime"`
+	EndTime         time.Time `json:"endTime"`
+	WorkDuration    float64   `json:"workDuration"`
+	TotalProduction float64   `json:"totalProduction"`
+	TotalEnergy     float64   `json:"totalEnergy"`
+}
 
 type ParameterStat struct {
 	Mean     float64  `json:"mean"`
@@ -52,16 +46,31 @@ type (
 		Warning string `json:"warning"`
 	}
 	Parameter struct {
-		Min      int `json:"min"`
-		Max      int `json:"max"`
-		Average  int `json:"average"`
-		Variance int `json:"variance"`
+		Min      float64 `json:"min"`
+		Max      float64 `json:"max"`
+		Average  float64 `json:"average"`
+		Variance float64 `json:"variance"`
 	}
 )
 
-type ReportParams struct {
-	ShipName  string      `json:"ship_name"`
-	StartTime time.Time   `json:"start_time"`
-	EndTime   time.Time   `json:"end_time"`
-	Shifts    []ShiftStat `json:"shifts"`
+type ColumnInfo struct {
+	ColumnName        string `json:"columnName"`
+	ColumnChineseName string `json:"columnChineseName"`
+}
+
+type (
+	ShiftPie struct {
+		ShiftName string   `json:"shiftName"`
+		WorkData  *PieData `json:"workData"`
+	}
+	PieData struct {
+		TotalProduction float64 `json:"totalProduction"`
+		TotalEnergy     float64 `json:"totalEnergy"`
+		WorkDuration    float64 `json:"workDuration"`
+	}
+)
+
+type ColumnData struct {
+	Timestamp string `json:"timestamp"`
+	Value     any    `json:"value"`
 }
