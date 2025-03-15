@@ -23,27 +23,32 @@ func (e errcode) String() string {
 type importDataRequest struct {
 	File     *multipart.FileHeader `form:"file" binding:"required"`
 	ShipName string                `form:"shipName" binding:"required"`
+	Cover    bool                  `form:"cover"`
 }
 
 type commonRequest struct {
 	ShipName  string `form:"shipName" binding:"required"`
 	StartDate string `form:"startDate" binding:"required,datetime=2006-01-02"`
-	EndDate   string `form:"endDate" binding:"required,datetime=2006-01-02,after=StartDate"`
+	EndDate   string `form:"endDate" binding:"required,datetime=2006-01-02"`
 }
 
 type getOptimalShiftRequest struct {
 	commonRequest
-	Metric string `form:"metric" binding:"required,oneof=maxProduction minEnergy"`
 }
 
 type getShiftPieRequest struct {
 	commonRequest
 }
 
-type getHistoryDataRequest struct {
-	commonRequest
-	Column string `form:"column" binding:"required"`
-}
+type (
+	getHistoryDataRequest struct {
+		commonRequest
+		getHistoryDataUri
+	}
+	getHistoryDataUri struct {
+		ColumnName string `uri:"columnName" binding:"required"`
+	}
+)
 
 type commonResponse struct {
 	Code    errcode `json:"code"`

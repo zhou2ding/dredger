@@ -1,6 +1,7 @@
 package service
 
 import (
+	"dredger/dao"
 	"dredger/pkg/logger"
 	"errors"
 	"fmt"
@@ -24,12 +25,13 @@ type Service struct {
 }
 
 func NewService(db *gorm.DB) *Service {
+	dao.SetDefault(db)
 	return &Service{
 		db: db,
 	}
 }
 
-func (s *Service) ImportData(file io.Reader, shipName string) (*ImportDataResult, error) {
+func (s *Service) ImportData(file io.Reader, shipName string, cover bool) (*ImportDataResult, error) {
 	xlsx, err := excelize.OpenReader(file)
 	if err != nil {
 		logger.Logger.Errorf("open excel file error: %v", err)
@@ -62,9 +64,23 @@ func (s *Service) ImportData(file io.Reader, shipName string) (*ImportDataResult
 	for i := 2; i < refType.NumField(); i++ {
 		fieldNames = append(fieldNames, refType.Field(i).Name)
 	}
+
+	var deletes []int64
+	if cover {
+		for _, row := range rows[1:] {
+			del, _ := time.ParseInLocation(time.DateTime, row[1], time.Local)
+			deletes = append(deletes, del.UnixMilli())
+		}
+		err = tx.Where("record_time IN (?)", deletes).Delete(model.DredgerDatum{}).Error
+		if err != nil {
+			logger.Logger.Errorf("覆盖数据时，删除旧数据失败: %v", err)
+			return nil, err
+		}
+	}
+
 	for rowNum, row := range rows[1:] {
 		if len(row) < len(fieldNames) {
-			logger.Logger.Warnf("警告：第 %d 行列数不足（%d/%d），跳过", rowNum+2, len(row), len(fieldNames))
+			logger.Logger.Warnf("第 %d 行列数不足（%d/%d），跳过", rowNum+2, len(row), len(fieldNames))
 			continue
 		}
 		data := model.DredgerDatum{ShipName: shipName}
@@ -80,7 +96,7 @@ func (s *Service) ImportData(file io.Reader, shipName string) (*ImportDataResult
 			}
 			if i == 0 {
 				// 第一个字段是时间戳
-				timestamp, err := time.Parse(time.DateTime, cellVal)
+				timestamp, err := time.ParseInLocation(time.DateTime, cellVal, time.Local)
 				if err != nil {
 					logger.Logger.Warnf("第 %d 行字段 %s 转换失败: %v", rowNum+2, fieldName, err)
 					valid = false
@@ -180,7 +196,8 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 
 		// 计算班次时间范围
 		var minTime, maxTime time.Time
-		duration := durationMinutes(minTime, maxTime, shiftRecords)
+		maxTime, minTime = durationMinutes(minTime, maxTime, shiftRecords)
+		duration := maxTime.Sub(minTime).Minutes()
 
 		// 计算产量总量
 		var totalOutputRate float64
@@ -224,7 +241,7 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 	return stats, nil
 }
 
-func (s *Service) GetOptimalShift(shipName, metric string, startTime, endTime int64) (*OptimalShift, error) {
+func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*OptimalShift, error) {
 	// 查询符合条件的记录
 	var records []*model.DredgerDatum
 	err := s.db.Where("ship_name = ?", shipName).
@@ -261,39 +278,49 @@ func (s *Service) GetOptimalShift(shipName, metric string, startTime, endTime in
 
 		// 计算班次时间范围
 		var minTime, maxTime time.Time
-		duration := durationMinutes(minTime, maxTime, shiftRecords)
-		if metric == MaxProduction {
-			// 计算产量总量
-			var totalOutputRate float64
-			for _, r := range shiftRecords {
-				totalOutputRate += r.OutputRate
-			}
-			avgOutputRate := totalOutputRate / float64(len(shiftRecords))
-			totalProduction := avgOutputRate * (duration / 60)
+		maxTime, minTime = durationMinutes(minTime, maxTime, shiftRecords)
+		duration := maxTime.Sub(minTime).Minutes()
 
-			if totalProduction > optimalShift.TotalProduction {
-				optimalShift.TotalProduction = totalProduction
-				optimalShift.ShiftName = shiftName(shift)
-				optimalShift.Parameters = calParams(shiftRecords)
-			}
-		} else if metric == MinEnergy {
-			// 计算能耗
-			var totalEnergy float64
-			for _, r := range shiftRecords {
-				P1 := r.UnderwaterPumpSuctionVacuum
-				P2 := r.IntermediatePressure
-				P3 := r.BoosterPumpDischargePressure
-				Q := r.FlowRate
+		// 计算产量总量
+		var totalOutputRate float64
+		for _, r := range shiftRecords {
+			totalOutputRate += r.OutputRate
+		}
+		avgOutputRate := totalOutputRate / float64(len(shiftRecords))
+		totalProduction := avgOutputRate * (duration / 60)
 
-				pw1 := 0.8 * Q * (P2 - P1)
-				pw2 := 0.8 * Q * (P3 - P2)
-				totalEnergy += (pw1 + pw2) * (duration / 60)
+		if totalProduction > optimalShift.TotalProduction {
+			optimalShift.TotalProduction = totalProduction
+			optimalShift.MaxProductionShift = &ShiftWorkParams{
+				ShiftName:  shiftName(shift),
+				Parameters: calParams(shiftRecords),
 			}
+		}
+		// 计算能耗
+		var totalEnergy float64
+		for _, r := range shiftRecords {
+			P1 := r.UnderwaterPumpSuctionVacuum
+			P2 := r.IntermediatePressure
+			P3 := r.BoosterPumpDischargePressure
+			Q := r.FlowRate
 
-			if totalEnergy < optimalShift.TotalEnergy {
-				optimalShift.TotalEnergy = totalEnergy
-				optimalShift.ShiftName = shiftName(shift)
-				optimalShift.Parameters = calParams(shiftRecords)
+			pw1 := 0.8 * Q * (P2 - P1)
+			pw2 := 0.8 * Q * (P3 - P2)
+			totalEnergy += (pw1 + pw2) * (duration / 60)
+		}
+
+		if optimalShift.TotalEnergy == 0 {
+			optimalShift.TotalEnergy = totalEnergy
+			optimalShift.MinEnergyShift = &ShiftWorkParams{
+				ShiftName:  shiftName(shift),
+				Parameters: calParams(shiftRecords),
+			}
+		}
+		if totalEnergy < optimalShift.TotalEnergy {
+			optimalShift.TotalEnergy = totalEnergy
+			optimalShift.MinEnergyShift = &ShiftWorkParams{
+				ShiftName:  shiftName(shift),
+				Parameters: calParams(shiftRecords),
 			}
 		}
 	}
@@ -387,7 +414,8 @@ func (s *Service) GetShiftPie(shipName string, startTime, endTime int64) ([]*Shi
 
 		// 计算班次时间范围
 		var minTime, maxTime time.Time
-		duration := durationMinutes(minTime, maxTime, shiftRecords)
+		maxTime, minTime = durationMinutes(minTime, maxTime, shiftRecords)
+		duration := maxTime.Sub(minTime).Minutes()
 
 		// 计算产量总量
 		var totalOutputRate float64
@@ -425,8 +453,8 @@ func (s *Service) GetShiftPie(shipName string, startTime, endTime int64) ([]*Shi
 
 func (s *Service) GetColumnDataList(columnName, shipName string, startTime, endTime int64) ([]*ColumnData, error) {
 	var records []map[string]any
-	err := s.db.Select("record_time").
-		Select(columnName).
+	err := s.db.Table(dao.DredgerDatum.TableName()).
+		Select(columnName, "record_time").
 		Where("ship_name = ?", shipName).
 		Where("record_time BETWEEN ? AND ?", startTime, endTime).Scan(&records).Error
 	if err != nil {

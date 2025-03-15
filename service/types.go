@@ -28,10 +28,14 @@ type ParameterStat struct {
 
 type (
 	OptimalShift struct {
-		ShiftName       string         `json:"shiftName"`
-		Parameters      ParameterStats `json:"parameters"`
-		TotalEnergy     float64        `json:"-"`
-		TotalProduction float64        `json:"-"`
+		MaxProductionShift *ShiftWorkParams `json:"maxProductionShift"`
+		MinEnergyShift     *ShiftWorkParams `json:"minEnergyShift"`
+		TotalEnergy        float64          `json:"-"`
+		TotalProduction    float64          `json:"-"`
+	}
+	ShiftWorkParams struct {
+		ShiftName  string         `json:"shiftName"`
+		Parameters ParameterStats `json:"parameters"`
 	}
 	ParameterStats struct {
 		HorizontalSpeed HorizontalSpeed `json:"horizontalSpeed"`
@@ -46,10 +50,11 @@ type (
 		Warning string `json:"warning"`
 	}
 	Parameter struct {
-		Min      float64 `json:"min"`
-		Max      float64 `json:"max"`
-		Average  float64 `json:"average"`
-		Variance float64 `json:"variance"`
+		Min                float64 `json:"min"`
+		Max                float64 `json:"max"`
+		Average            float64 `json:"average"`
+		Variance           float64 `json:"variance"`
+		MaxProductionParam float64 `json:"maxProductionParam"`
 	}
 )
 

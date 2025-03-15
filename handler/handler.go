@@ -33,7 +33,7 @@ func (h *Handler) ImportData(c *gin.Context) {
 	}
 	defer file.Close()
 
-	rows, err := h.svc.ImportData(file, req.ShipName)
+	rows, err := h.svc.ImportData(file, req.ShipName, req.Cover)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errBadRequest, err.Error()))
 		return
@@ -49,8 +49,8 @@ func (h *Handler) GetShiftStats(c *gin.Context) {
 		return
 	}
 
-	start, _ := time.Parse(time.DateOnly, query.StartDate)
-	end, _ := time.Parse(time.DateOnly, query.EndDate)
+	start, _ := time.ParseInLocation(time.DateOnly, query.StartDate, time.Local)
+	end, _ := time.ParseInLocation(time.DateOnly, query.EndDate, time.Local)
 	stats, err := h.svc.GetShiftStats(query.ShipName, start.UnixMilli(), end.UnixMilli())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
@@ -67,10 +67,10 @@ func (h *Handler) GetOptimalShift(c *gin.Context) {
 		return
 	}
 
-	start, _ := time.Parse(time.DateOnly, query.StartDate)
-	end, _ := time.Parse(time.DateOnly, query.EndDate)
+	start, _ := time.ParseInLocation(time.DateOnly, query.StartDate, time.Local)
+	end, _ := time.ParseInLocation(time.DateOnly, query.EndDate, time.Local)
 
-	result, err := h.svc.GetOptimalShift(query.ShipName, query.Metric, start.UnixMilli(), end.UnixMilli())
+	result, err := h.svc.GetOptimalShift(query.ShipName, start.UnixMilli(), end.UnixMilli())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
 		return
@@ -101,8 +101,8 @@ func (h *Handler) GetShiftPie(c *gin.Context) {
 		return
 	}
 
-	start, _ := time.Parse(time.DateOnly, query.StartDate)
-	end, _ := time.Parse(time.DateOnly, query.EndDate)
+	start, _ := time.ParseInLocation(time.DateOnly, query.StartDate, time.Local)
+	end, _ := time.ParseInLocation(time.DateOnly, query.EndDate, time.Local)
 	pie, err := h.svc.GetShiftPie(query.ShipName, start.UnixMilli(), end.UnixMilli())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
@@ -112,16 +112,23 @@ func (h *Handler) GetShiftPie(c *gin.Context) {
 }
 
 func (h *Handler) GetHistoryData(c *gin.Context) {
-	var query getHistoryDataRequest
+	var uri getHistoryDataUri
+	if err := c.ShouldBindUri(&uri); err != nil {
+		logger.Logger.Errorf("路径参数有误: %v", err)
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
+		return
+	}
+
+	var query commonRequest
 	if err := c.ShouldBindQuery(&query); err != nil {
 		logger.Logger.Errorf("请求参数有误: %v", err)
 		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
 		return
 	}
 
-	start, _ := time.Parse(time.DateOnly, query.StartDate)
-	end, _ := time.Parse(time.DateOnly, query.EndDate)
-	dataList, err := h.svc.GetColumnDataList(query.Column, query.ShipName, start.UnixMilli(), end.UnixMilli())
+	start, _ := time.ParseInLocation(time.DateOnly, query.StartDate, time.Local)
+	end, _ := time.ParseInLocation(time.DateOnly, query.EndDate, time.Local)
+	dataList, err := h.svc.GetColumnDataList(uri.ColumnName, query.ShipName, start.UnixMilli(), end.UnixMilli())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
 		return

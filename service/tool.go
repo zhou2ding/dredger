@@ -18,7 +18,7 @@ func shiftName(shift int) string {
 	}
 }
 
-func durationMinutes(minTime, maxTime time.Time, records []*model.DredgerDatum) float64 {
+func durationMinutes(minTime, maxTime time.Time, records []*model.DredgerDatum) (time.Time, time.Time) {
 	for i, r := range records {
 		t := time.UnixMilli(r.RecordTime)
 		if i == 0 || t.Before(minTime) {
@@ -28,7 +28,7 @@ func durationMinutes(minTime, maxTime time.Time, records []*model.DredgerDatum) 
 			maxTime = t
 		}
 	}
-	return maxTime.Sub(minTime).Minutes()
+	return maxTime, minTime
 }
 
 // 核心参数统计
@@ -43,7 +43,14 @@ func calParams(records []*model.DredgerDatum) ParameterStats {
 		warning          string
 	)
 
+	maxOutputRate := -1.0
+	maxIndex := 0
+
 	for i, r := range records {
+		if r.OutputRate > maxOutputRate {
+			maxOutputRate = r.OutputRate
+			maxIndex = i
+		}
 		horizontalSpeeds[i] = r.TransverseSpeed
 		carriageTravels[i] = r.TrolleyTravel
 		cutterDepths[i] = r.CutterDepth
@@ -51,20 +58,34 @@ func calParams(records []*model.DredgerDatum) ParameterStats {
 		concentrations[i] = r.Concentration
 		flows[i] = r.FlowRate
 		if r.OutputRate > 0 && r.TransverseSpeed == 0 {
-			warning = "检测到横移速度传感器异常"
+			warning = "存在产量非0，但是横移速度为0的数据，请检查传感器状态"
 		}
 	}
 
+	horizontalSpeed := HorizontalSpeed{
+		Parameter: calculateStats(horizontalSpeeds),
+		Warning:   warning,
+	}
+	carriageTravel := calculateStats(carriageTravels)
+	cutterDepth := calculateStats(cutterDepths)
+	sPumpRpm := calculateStats(spumpRpms)
+	concentration := calculateStats(concentrations)
+	flow := calculateStats(flows)
+
+	horizontalSpeed.MaxProductionParam = horizontalSpeeds[maxIndex]
+	carriageTravel.MaxProductionParam = carriageTravels[maxIndex]
+	cutterDepth.MaxProductionParam = cutterDepths[maxIndex]
+	sPumpRpm.MaxProductionParam = spumpRpms[maxIndex]
+	concentration.MaxProductionParam = concentrations[maxIndex]
+	flow.MaxProductionParam = flows[maxIndex]
+
 	return ParameterStats{
-		HorizontalSpeed: HorizontalSpeed{
-			Parameter: calculateStats(horizontalSpeeds),
-			Warning:   warning,
-		},
-		CarriageTravel: calculateStats(carriageTravels),
-		CutterDepth:    calculateStats(cutterDepths),
-		SPumpRpm:       calculateStats(spumpRpms),
-		Concentration:  calculateStats(concentrations),
-		Flow:           calculateStats(flows),
+		HorizontalSpeed: horizontalSpeed,
+		CarriageTravel:  carriageTravel,
+		CutterDepth:     cutterDepth,
+		SPumpRpm:        sPumpRpm,
+		Concentration:   concentration,
+		Flow:            flow,
 	}
 }
 
