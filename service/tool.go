@@ -2,6 +2,7 @@ package service
 
 import (
 	"dredger/model"
+	"math"
 	"time"
 )
 
@@ -10,7 +11,7 @@ func shiftName(shift int) string {
 	case 1:
 		return "0-6"
 	case 2:
-		return "0-12"
+		return "6-12"
 	case 3:
 		return "12-18"
 	default:
@@ -109,9 +110,13 @@ func calculateStats(data []float64) Parameter {
 	variance := (sumSquares / n) - (mean * mean)
 
 	return Parameter{
-		Min:      minVal,
-		Max:      maxVal,
-		Average:  mean,
-		Variance: variance,
+		Min:      round(minVal),
+		Max:      round(maxVal),
+		Average:  round(mean),
+		Variance: round(variance),
 	}
+}
+
+func round(x float64) float64 {
+	return math.Round(x*100) / 100
 }

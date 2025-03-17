@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/xuri/excelize/v2"
 	"io"
-	"math"
 	"reflect"
 	"sort"
 	"strconv"
@@ -225,8 +224,8 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 			BeginTime:       minTime,
 			EndTime:         maxTime,
 			WorkDuration:    duration,
-			TotalProduction: math.Round(totalProduction*100) / 100,
-			TotalEnergy:     math.Round(totalEnergy*100) / 100,
+			TotalProduction: round(totalProduction),
+			TotalEnergy:     round(totalEnergy / totalProduction),
 		})
 	}
 
@@ -290,7 +289,7 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 		totalProduction := avgOutputRate * (duration / 60)
 
 		if totalProduction > optimalShift.TotalProduction {
-			optimalShift.TotalProduction = totalProduction
+			optimalShift.TotalProduction = round(totalProduction)
 			optimalShift.MaxProductionShift = &ShiftWorkParams{
 				ShiftName:  shiftName(shift),
 				Parameters: calParams(shiftRecords),
@@ -310,14 +309,14 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 		}
 
 		if optimalShift.TotalEnergy == 0 {
-			optimalShift.TotalEnergy = totalEnergy
+			optimalShift.TotalEnergy = round(totalEnergy)
 			optimalShift.MinEnergyShift = &ShiftWorkParams{
 				ShiftName:  shiftName(shift),
 				Parameters: calParams(shiftRecords),
 			}
 		}
 		if totalEnergy < optimalShift.TotalEnergy {
-			optimalShift.TotalEnergy = totalEnergy
+			optimalShift.TotalEnergy = round(totalEnergy)
 			optimalShift.MinEnergyShift = &ShiftWorkParams{
 				ShiftName:  shiftName(shift),
 				Parameters: calParams(shiftRecords),
