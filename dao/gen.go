@@ -17,17 +17,20 @@ import (
 
 var (
 	Q            = new(Query)
+	DataDate     *dataDate
 	DredgerDatum *dredgerDatum
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
+	DataDate = &Q.DataDate
 	DredgerDatum = &Q.DredgerDatum
 }
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
 		db:           db,
+		DataDate:     newDataDate(db, opts...),
 		DredgerDatum: newDredgerDatum(db, opts...),
 	}
 }
@@ -35,6 +38,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 type Query struct {
 	db *gorm.DB
 
+	DataDate     dataDate
 	DredgerDatum dredgerDatum
 }
 
@@ -43,6 +47,7 @@ func (q *Query) Available() bool { return q.db != nil }
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
 		db:           db,
+		DataDate:     q.DataDate.clone(db),
 		DredgerDatum: q.DredgerDatum.clone(db),
 	}
 }
@@ -58,16 +63,19 @@ func (q *Query) WriteDB() *Query {
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
 		db:           db,
+		DataDate:     q.DataDate.replaceDB(db),
 		DredgerDatum: q.DredgerDatum.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
+	DataDate     IDataDateDo
 	DredgerDatum IDredgerDatumDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
+		DataDate:     q.DataDate.WithContext(ctx),
 		DredgerDatum: q.DredgerDatum.WithContext(ctx),
 	}
 }

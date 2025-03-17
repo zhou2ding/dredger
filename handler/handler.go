@@ -2,11 +2,9 @@ package handler
 
 import (
 	"dredger/pkg/logger"
-	"net/http"
-	"time"
-
 	"dredger/service"
 	"github.com/gin-gonic/gin"
+	"net/http"
 )
 
 type Handler struct {
@@ -25,6 +23,11 @@ func (h *Handler) ImportData(c *gin.Context) {
 		return
 	}
 
+	startDate, endDate, err := parseFileName(req.File.Filename)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
+		return
+	}
 	file, err := req.File.Open()
 	if err != nil {
 		logger.Logger.Errorf("无法打开文件: %v", err)
@@ -33,12 +36,14 @@ func (h *Handler) ImportData(c *gin.Context) {
 	}
 	defer file.Close()
 
-	rows, err := h.svc.ImportData(file, req.ShipName, req.Cover)
+	rows, err := h.svc.ImportData(file, req.ShipName, req.Cover, startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errBadRequest, err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, success(rows))
+
+	logger.Logger.Infof("导入 %s 成功！", req.File.Filename)
 }
 
 func (h *Handler) GetShiftStats(c *gin.Context) {
@@ -49,9 +54,7 @@ func (h *Handler) GetShiftStats(c *gin.Context) {
 		return
 	}
 
-	start, _ := time.ParseInLocation(time.DateOnly, query.StartDate, time.Local)
-	end, _ := time.ParseInLocation(time.DateOnly, query.EndDate, time.Local)
-	stats, err := h.svc.GetShiftStats(query.ShipName, start.UnixMilli(), end.UnixMilli())
+	stats, err := h.svc.GetShiftStats(query.ShipName, query.StartDate, query.EndDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
 		return
@@ -67,10 +70,7 @@ func (h *Handler) GetOptimalShift(c *gin.Context) {
 		return
 	}
 
-	start, _ := time.ParseInLocation(time.DateOnly, query.StartDate, time.Local)
-	end, _ := time.ParseInLocation(time.DateOnly, query.EndDate, time.Local)
-
-	result, err := h.svc.GetOptimalShift(query.ShipName, start.UnixMilli(), end.UnixMilli())
+	result, err := h.svc.GetOptimalShift(query.ShipName, query.StartDate, query.EndDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
 		return
@@ -101,9 +101,7 @@ func (h *Handler) GetShiftPie(c *gin.Context) {
 		return
 	}
 
-	start, _ := time.ParseInLocation(time.DateOnly, query.StartDate, time.Local)
-	end, _ := time.ParseInLocation(time.DateOnly, query.EndDate, time.Local)
-	pie, err := h.svc.GetShiftPie(query.ShipName, start.UnixMilli(), end.UnixMilli())
+	pie, err := h.svc.GetShiftPie(query.ShipName, query.StartDate, query.EndDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
 		return
@@ -126,12 +124,35 @@ func (h *Handler) GetHistoryData(c *gin.Context) {
 		return
 	}
 
-	start, _ := time.ParseInLocation(time.DateOnly, query.StartDate, time.Local)
-	end, _ := time.ParseInLocation(time.DateOnly, query.EndDate, time.Local)
-	dataList, err := h.svc.GetColumnDataList(uri.ColumnName, query.ShipName, start.UnixMilli(), end.UnixMilli())
+	dataList, err := h.svc.GetColumnDataList(uri.ColumnName, query.ShipName, query.StartDate, query.EndDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, success(dataList))
+}
+
+func (h *Handler) GetGlobalTimeRange(c *gin.Context) {
+	results, err := h.svc.GetGlobalTimeRange()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, success(results))
+}
+
+func (h *Handler) GetNoneEmptyTimeRange(c *gin.Context) {
+	var req commonRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		logger.Logger.Errorf("请求参数有误: %v", err)
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
+		return
+	}
+
+	results, err := h.svc.GetNonEmptyTimeRange(req.ShipName, req.StartDate, req.EndDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, success(results))
 }

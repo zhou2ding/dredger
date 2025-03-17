@@ -28,8 +28,8 @@ type importDataRequest struct {
 
 type commonRequest struct {
 	ShipName  string `form:"shipName" binding:"required"`
-	StartDate string `form:"startDate" binding:"required,datetime=2006-01-02"`
-	EndDate   string `form:"endDate" binding:"required,datetime=2006-01-02"`
+	StartDate int64  `form:"startDate" binding:"required"`
+	EndDate   int64  `form:"endDate" binding:"required"`
 }
 
 type getOptimalShiftRequest struct {

@@ -61,6 +61,7 @@ type (
 type ColumnInfo struct {
 	ColumnName        string `json:"columnName"`
 	ColumnChineseName string `json:"columnChineseName"`
+	ColumnUnit        string `json:"columnUnit"`
 }
 
 type (
@@ -78,4 +79,10 @@ type (
 type ColumnData struct {
 	Timestamp string `json:"timestamp"`
 	Value     any    `json:"value"`
+}
+
+type GlobalTimeRange struct {
+	ShipName  string `json:"shipName"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
 }

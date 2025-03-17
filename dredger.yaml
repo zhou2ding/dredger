@@ -7,3 +7,6 @@ log:
   stdout: true
 frontend:
   host: "*"
+database:
+  host: "36.133.97.26:26033"
+  password: "5023152"

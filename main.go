@@ -5,6 +5,7 @@ import (
 	"dredger/pkg/conf"
 	"dredger/pkg/logger"
 	"dredger/service"
+	"fmt"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
@@ -21,8 +22,10 @@ func main() {
 	conf.InitConf("./dredger.yaml")
 	logger.InitLogger("dredger")
 
+	host := conf.Conf.GetString("database.host")
+	password := conf.Conf.GetString("database.password")
 	var err error
-	dsn := "root:5023152@tcp(36.133.97.26:26033)/dredger?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := fmt.Sprintf("root:%s@tcp(%s)/dredger?charset=utf8mb4&parseTime=True&loc=Local", password, host)
 	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
 		Logger: gormLogger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), gormLogger.Config{
 			SlowThreshold: time.Second,
@@ -58,6 +61,8 @@ func SetupRouter(svc *service.Service) *gin.Engine {
 		api.GET("/ship/list", h.GetShipList)
 		api.GET("/shifts/optimal", h.GetOptimalShift)
 		api.GET("/data/replay/:columnName", h.GetHistoryData)
+		api.GET("data/timerange/global", h.GetGlobalTimeRange)
+		api.GET("data/timerange/nonempty", h.GetNoneEmptyTimeRange)
 	}
 
 	return r

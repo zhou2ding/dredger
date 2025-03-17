@@ -174,7 +174,7 @@ type dredgerDatum struct {
 	Gps1X                             field.Float64 // GPS1_X
 	Gps1Y                             field.Float64 // GPS1_Y
 	Gps1Heading                       field.Float64 // GPS1航向
-	Gps1Speed                         field.Float64 // GPS1航速
+	Gps1Speed                         field.Float64 // GPS1航速(
 	TideLevel                         field.Float64 // 潮位
 	WaterDensity                      field.Float64 // 水密度
 	FieldSlurryDensity                field.Float64 // 现场泥浆比重
@@ -198,7 +198,7 @@ type dredgerDatum struct {
 	Gps2Y                             field.Float64 // GPS2_Y
 	Gps2Heading                       field.Float64 // GPS2航向
 	Gps2Speed                         field.Float64 // GPS2航速
-	NaturalSoilDensity                field.Float64 // 天然土密度
+	NaturalSoilDensity                field.Float64 // 天然土密度(
 	Gps2Latitude                      field.Float64 // GPS2_纬度
 	Gps2Longitude                     field.Float64 // GPS2_经度
 	LeftDensity                       field.Float64 // 左密度
@@ -207,11 +207,11 @@ type dredgerDatum struct {
 	DrySoilOutput                     field.Float64 // 干土产量
 	DryTonOutput                      field.Float64 // 干吨土方量
 	OutputRate                        field.Float64 // 产量率
-	CurrentShiftOutputRate            field.Float64 // 当前班产量率(
+	CurrentShiftOutputRate            field.Float64 // 当前班产量率
 	CurrentShiftOutput                field.Float64 // 当前班产量
 	TransverseDistance                field.Float64 // 横移距离
 	CurrentShift                      field.Int32   // 当前班次
-	TransverseAngle                   field.Float64 // 横移角度
+	TransverseAngle                   field.Float64 // 横移角度(综合左右)
 	DailyCumulativeOutput             field.Float64 // 今日累计产量
 	PreviousDayOutput                 field.Float64 // 昨日产量
 	CutterDepth                       field.Float64 // 绞刀深度
@@ -230,7 +230,7 @@ type dredgerDatum struct {
 	EarToBottomDistance               field.Float64 // 耳轴到船底垂直距离
 	AutoTideLevel                     field.Float64 // 自动读入的潮位
 	CuttingAngle                      field.Float64 // 切削角度
-	TransverseDirection               field.Int32   // 横移方向
+	TransverseDirection               field.Int32   // 横移方向(-1：右/0：无/1：左)
 	MainPilePivotX                    field.Float64 // 主桩支点x
 	MainPilePivotY                    field.Float64 // 主桩支点y
 	BridgeWaterDepth                  field.Float64 // 绞刀(桥架)水面深度
@@ -259,7 +259,7 @@ type dredgerDatum struct {
 	EarY                              field.Float64 // 耳轴y
 	PreviousCutterDepth               field.Float64 // 绞刀头点上一次的深度
 	LeftBridgeWinchSpeed              field.Float64 // 左舷桥架绞车速度(接口计算值)
-	RightBridgeWinchSpeed             field.Float64 // 右舷桥架绞车速度(接口计算值)
+	RightBridgeWinchSpeed             field.Float64 // 右舷桥架绞车速度(接口计算值
 	BridgeSpeed                       field.Float64 // 桥架速度(接口计算值)
 	LeftBridgeWinchSpeed2             field.Float64 // 左舷桥架绞车速度2(接口计算值)
 	RightBridgeWinchSpeed2            field.Float64 // 右舷桥架绞车速度2(接口计算值)

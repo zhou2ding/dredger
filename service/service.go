@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xuri/excelize/v2"
+	"gorm.io/gorm/clause"
 	"io"
 	"reflect"
 	"sort"
@@ -30,7 +31,7 @@ func NewService(db *gorm.DB) *Service {
 	}
 }
 
-func (s *Service) ImportData(file io.Reader, shipName string, cover bool) (*ImportDataResult, error) {
+func (s *Service) ImportData(file io.Reader, shipName string, cover bool, startDate, endDate int64) (*ImportDataResult, error) {
 	xlsx, err := excelize.OpenReader(file)
 	if err != nil {
 		logger.Logger.Errorf("open excel file error: %v", err)
@@ -52,6 +53,15 @@ func (s *Service) ImportData(file io.Reader, shipName string, cover bool) (*Impo
 			tx.Rollback()
 		}
 	}()
+
+	dataDates := []model.DataDate{
+		{ShipName: shipName, Date: startDate},
+		{ShipName: shipName, Date: endDate},
+	}
+	if err = tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(&dataDates).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 
 	var (
 		imported   int
@@ -368,6 +378,7 @@ func (s *Service) GetColumns() []*ColumnInfo {
 			columns = append(columns, &ColumnInfo{
 				ColumnName:        column,
 				ColumnChineseName: columnCN,
+				ColumnUnit:        field.Tag.Get("unit"),
 			})
 		}
 	}
@@ -472,4 +483,31 @@ func (s *Service) GetColumnDataList(columnName, shipName string, startTime, endT
 	}
 
 	return dataList, nil
+}
+
+func (s *Service) GetGlobalTimeRange() ([]*GlobalTimeRange, error) {
+	var records []*GlobalTimeRange
+	err := s.db.Model(&model.DataDate{}).
+		Select("ship_name, MIN(date) as start_date, MAX(date) as end_date").
+		Group("ship_name").
+		Scan(&records).Error
+	if err != nil {
+		logger.Logger.Errorf("查询全局时间范围失败: %v", err)
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (s *Service) GetNonEmptyTimeRange(shipName string, startDate, endDate int64) ([]int64, error) {
+	var records []int64
+	err := s.db.Model(&model.DataDate{}).
+		Where("ship_name = ? AND date BETWEEN ? AND ?", shipName, startDate, endDate).
+		Order("date ASC").
+		Pluck("date", &records).Error
+	if err != nil {
+		logger.Logger.Errorf("查询有数据的时间范围失败: %v", err)
+		return nil, err
+	}
+	return records, nil
 }
