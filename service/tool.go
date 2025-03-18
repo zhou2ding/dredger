@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const calHorizontalSpeedTimeDuration = 5 * 60 * 3000
+
 func shiftName(shift int) string {
 	switch shift {
 	case 1:
@@ -59,7 +61,43 @@ func calParams(records []*model.DredgerDatum) ParameterStats {
 		concentrations[i] = r.Concentration
 		flows[i] = r.FlowRate
 		if r.OutputRate > 0 && r.TransverseSpeed == 0 {
-			warning = "存在产量非0，但是横移速度为0的数据，请检查传感器状态"
+			currentTime := r.RecordTime
+			targetTime := currentTime + calHorizontalSpeedTimeDuration // 5分钟后的时间戳
+			var nextRecord *model.DredgerDatum
+
+			// 查找 5 分钟后的记录
+			for j := i + 1; j < len(records); j++ {
+				if records[j].RecordTime >= targetTime {
+					nextRecord = records[j]
+					break
+				}
+			}
+
+			// 若无 5 分钟后的记录，使用最后一条记录
+			if nextRecord == nil && len(records) > i+1 {
+				nextRecord = records[len(records)-1]
+			}
+
+			if nextRecord != nil {
+				// 计算两点间距离
+				x1, y1 := r.CutterX, r.CutterY
+				x2, y2 := nextRecord.CutterX, nextRecord.CutterY
+				distance := math.Sqrt(math.Pow(x2-x1, 2) + math.Pow(y2-y1, 2))
+
+				// 计算时间差（单位：秒）
+				timeDiff := float64(nextRecord.RecordTime-currentTime) / 1000.0 / 60
+				if timeDiff > 5 {
+					timeDiff = 5 // 限制为 5 分钟
+				}
+
+				// 计算横移速度
+				transverseSpeed := distance / timeDiff
+				horizontalSpeeds[i] = transverseSpeed
+				warning = "横移速度为0，已通过绞刀位置重新计算"
+			} else {
+				horizontalSpeeds[i] = r.TransverseSpeed
+				warning = "存在产量非0，但是横移速度为0的数据，且无法计算，请检查传感器状态"
+			}
 		}
 	}
 
@@ -73,11 +111,11 @@ func calParams(records []*model.DredgerDatum) ParameterStats {
 	concentration := calculateStats(concentrations)
 	flow := calculateStats(flows)
 
-	horizontalSpeed.MaxProductionParam = horizontalSpeeds[maxIndex]
-	carriageTravel.MaxProductionParam = carriageTravels[maxIndex]
-	cutterDepth.MaxProductionParam = cutterDepths[maxIndex]
-	sPumpRpm.MaxProductionParam = spumpRpms[maxIndex]
-	concentration.MaxProductionParam = concentrations[maxIndex]
+	horizontalSpeed.MaxProductionParam = round(horizontalSpeeds[maxIndex])
+	carriageTravel.MaxProductionParam = round(carriageTravels[maxIndex])
+	cutterDepth.MaxProductionParam = round(cutterDepths[maxIndex])
+	sPumpRpm.MaxProductionParam = round(spumpRpms[maxIndex])
+	concentration.MaxProductionParam = round(concentrations[maxIndex])
 	flow.MaxProductionParam = flows[maxIndex]
 
 	return ParameterStats{
