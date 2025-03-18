@@ -8,6 +8,7 @@ import (
 	"github.com/xuri/excelize/v2"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 	"io"
 	"log"
@@ -61,7 +62,6 @@ func main() {
 	}
 
 	totalImported := 0
-	shipNameRegex := regexp.MustCompile(`^[\p{Han}]+`)
 
 	for _, file := range files {
 		if file.IsDir() || !strings.HasSuffix(strings.ToLower(file.Name()), ".xlsx") {
@@ -71,12 +71,11 @@ func main() {
 		filePath := filepath.Join(*fileDir, file.Name())
 		baseName := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
 
-		matches := shipNameRegex.FindStringSubmatch(baseName)
-		if len(matches) == 0 {
+		shipName, startDate, endData, err := parseFileName(baseName)
+		if err != nil {
 			fmt.Printf("文件 %s 无法解析船名，跳过\n", filePath)
 			continue
 		}
-		shipName := matches[0]
 
 		f, err := os.Open(filePath)
 		if err != nil {
@@ -84,7 +83,7 @@ func main() {
 			continue
 		}
 
-		imported, err := importData(f, shipName)
+		imported, err := importData(f, shipName, startDate, endData)
 		f.Close()
 		if err != nil {
 			fmt.Printf("导入文件 %s 失败: %v\n", filePath, err)
@@ -97,7 +96,7 @@ func main() {
 	fmt.Printf("\n总计导入 %d 条记录\n", totalImported)
 }
 
-func importData(file io.Reader, shipName string) (int, error) {
+func importData(file io.Reader, shipName string, startDate, endDate int64) (int, error) {
 	xlsx, err := excelize.OpenReader(file)
 	if err != nil {
 		fmt.Printf("open excel file error: %v\n", err)
@@ -119,6 +118,15 @@ func importData(file io.Reader, shipName string) (int, error) {
 			tx.Rollback()
 		}
 	}()
+
+	dataDates := []model.DataDate{
+		{ShipName: shipName, Date: startDate},
+		{ShipName: shipName, Date: endDate},
+	}
+	if err = tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(&dataDates).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
 
 	var (
 		imported   int
@@ -209,4 +217,34 @@ func importData(file io.Reader, shipName string) (int, error) {
 	}
 
 	return imported, nil
+}
+
+func parseFileName(fileName string) (shipName string, start, end int64, err error) {
+	re := regexp.MustCompile(`^([\p{Han}]+)(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})至(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})`)
+	matches := re.FindStringSubmatch(fileName)
+	if len(matches) != 4 {
+		return "", 0, 0, errors.New("文件名不合法")
+	}
+
+	startTime, err := parseTime(matches[2])
+	if err != nil {
+		return "", 0, 0, err
+	}
+
+	endTime, err := parseTime(matches[3])
+	if err != nil {
+		return "", 0, 0, err
+	}
+
+	return matches[1], startTime, endTime, nil
+}
+
+func parseTime(tsStr string) (int64, error) {
+	t, err := time.ParseInLocation("2006-01-02-15-04-05", tsStr, time.Local)
+	if err != nil {
+		return 0, err
+	}
+	truncated := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.Local)
+
+	return truncated.UnixMilli(), nil
 }
