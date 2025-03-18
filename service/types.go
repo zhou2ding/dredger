@@ -82,7 +82,9 @@ type ColumnData struct {
 }
 
 type GlobalTimeRange struct {
-	ShipName  string `json:"shipName"`
-	StartDate string `json:"startDate"`
-	EndDate   string `json:"endDate"`
+	ShipName     string `json:"shipName"`
+	StartDate    int64  `json:"-"`
+	EndDate      int64  `json:"-"`
+	StartDateStr string `json:"startDate"`
+	EndDateStr   string `json:"endDate"`
 }

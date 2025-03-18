@@ -229,13 +229,16 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 			totalEnergy += (pw1 + pw2) * (duration / 60)
 		}
 
+		if totalProduction != 0 {
+			totalEnergy = totalEnergy / totalProduction
+		}
 		stats = append(stats, &ShiftStat{
 			ShiftName:       shiftName(shift),
 			BeginTime:       minTime,
 			EndTime:         maxTime,
 			WorkDuration:    duration,
 			TotalProduction: round(totalProduction),
-			TotalEnergy:     round(totalEnergy / totalProduction),
+			TotalEnergy:     round(totalEnergy),
 		})
 	}
 
@@ -494,6 +497,11 @@ func (s *Service) GetGlobalTimeRange() ([]*GlobalTimeRange, error) {
 	if err != nil {
 		logger.Logger.Errorf("查询全局时间范围失败: %v", err)
 		return nil, err
+	}
+
+	for _, record := range records {
+		record.StartDateStr = time.UnixMilli(record.StartDate).Format(time.DateOnly)
+		record.EndDateStr = time.UnixMilli(record.EndDate).Format(time.DateOnly)
 	}
 
 	return records, nil
