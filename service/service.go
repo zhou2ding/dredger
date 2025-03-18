@@ -217,7 +217,7 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 		totalProduction := avgOutputRate * (duration / 60)
 
 		// 计算能耗
-		var totalEnergy float64
+		var totalPower float64
 		for _, r := range shiftRecords {
 			P1 := r.UnderwaterPumpSuctionVacuum
 			P2 := r.IntermediatePressure
@@ -226,8 +226,11 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 
 			pw1 := 0.8 * Q * (P2 - P1)
 			pw2 := 0.8 * Q * (P3 - P2)
-			totalEnergy += (pw1 + pw2) * (duration / 60)
+
+			totalPower += pw1 + pw2
 		}
+		avgPower := totalPower / float64(len(shiftRecords))
+		totalEnergy := avgPower * (duration / 60)
 
 		if totalProduction != 0 {
 			totalEnergy = totalEnergy / totalProduction
