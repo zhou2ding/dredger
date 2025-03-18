@@ -170,7 +170,16 @@ func (s *Service) ImportData(file io.Reader, shipName string, cover bool, startD
 func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*ShiftStat, error) {
 	// 查询符合条件的记录
 	var records []*model.DredgerDatum
-	err := s.db.Where("ship_name = ?", shipName).
+	columns := []string{
+		dao.DredgerDatum.ShipName.ColumnName().String(),
+		dao.DredgerDatum.RecordTime.ColumnName().String(),
+		dao.DredgerDatum.OutputRate.ColumnName().String(),
+		dao.DredgerDatum.UnderwaterPumpSuctionVacuum.ColumnName().String(),
+		dao.DredgerDatum.BoosterPumpDischargePressure.ColumnName().String(),
+		dao.DredgerDatum.FlowRate.ColumnName().String(),
+	}
+	err := s.db.Select(columns).
+		Where("ship_name = ?", shipName).
 		Where("record_time BETWEEN ? AND ?", startTime, endTime).
 		Find(&records).Error
 	if err != nil {
@@ -227,7 +236,8 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 			pw1 := 0.8 * Q * (P2 - P1)
 			pw2 := 0.8 * Q * (P3 - P2)
 
-			totalPower += pw1 + pw2
+			pw := pw1 + pw2
+			totalPower += pw
 		}
 		avgPower := totalPower / float64(len(shiftRecords))
 		totalEnergy := avgPower * (duration / 60)
@@ -259,7 +269,20 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*OptimalShift, error) {
 	// 查询符合条件的记录
 	var records []*model.DredgerDatum
-	err := s.db.Where("ship_name = ?", shipName).
+	columns := []string{
+		dao.DredgerDatum.ShipName.ColumnName().String(),
+		dao.DredgerDatum.RecordTime.ColumnName().String(),
+		dao.DredgerDatum.OutputRate.ColumnName().String(),
+		dao.DredgerDatum.TransverseSpeed.ColumnName().String(),
+		dao.DredgerDatum.TrolleyTravel.ColumnName().String(),
+		dao.DredgerDatum.CutterDepth.ColumnName().String(),
+		dao.DredgerDatum.UnderwaterPumpSpeed.ColumnName().String(),
+		dao.DredgerDatum.Concentration.ColumnName().String(),
+		dao.DredgerDatum.FlowRate.ColumnName().String(),
+		dao.DredgerDatum.CutterX.ColumnName().String(),
+		dao.DredgerDatum.CutterY.ColumnName().String(),
+	}
+	err := s.db.Select(columns).Where("ship_name = ?", shipName).
 		Where("record_time BETWEEN ? AND ?", startTime, endTime).
 		Find(&records).Error
 	if err != nil {
