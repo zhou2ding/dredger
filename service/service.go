@@ -479,10 +479,17 @@ func (s *Service) GetColumnDataList(columnName, shipName string, startTime, endT
 	for _, record := range records {
 		t := time.UnixMilli(record["record_time"].(int64)).Format(time.DateTime)
 		v := record[columnName]
-		dataList = append(dataList, &ColumnData{
-			Timestamp: t,
-			Value:     v,
-		})
+		var roundVal float64
+		if _, ok := v.(float64); ok {
+			roundVal = round(v.(float64))
+		}
+		data := &ColumnData{Timestamp: t}
+		if roundVal != 0 {
+			data.Value = roundVal
+		} else {
+			data.Value = v
+		}
+		dataList = append(dataList, data)
 	}
 
 	return dataList, nil
