@@ -1,3 +1,6 @@
 .idea/
 /logs/
 /nssm.exe
+/dredger
+/dredger.exe
+/scripts/import.exe
