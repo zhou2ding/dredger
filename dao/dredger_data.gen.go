@@ -150,7 +150,7 @@ func newDredgerDatum(db *gorm.DB, opts ...gen.DOOption) dredgerDatum {
 	return _dredgerDatum
 }
 
-// dredgerDatum 绞吸式挖泥船施工数据表
+// dredgerDatum 敏龙绞吸式挖泥船施工数据表
 type dredgerDatum struct {
 	dredgerDatumDo
 
@@ -259,7 +259,7 @@ type dredgerDatum struct {
 	EarY                              field.Float64 // 耳轴y
 	PreviousCutterDepth               field.Float64 // 绞刀头点上一次的深度
 	LeftBridgeWinchSpeed              field.Float64 // 左舷桥架绞车速度(接口计算值)
-	RightBridgeWinchSpeed             field.Float64 // 右舷桥架绞车速度(接口计算值
+	RightBridgeWinchSpeed             field.Float64 // 右舷桥架绞车速度(接口计算值)
 	BridgeSpeed                       field.Float64 // 桥架速度(接口计算值)
 	LeftBridgeWinchSpeed2             field.Float64 // 左舷桥架绞车速度2(接口计算值)
 	RightBridgeWinchSpeed2            field.Float64 // 右舷桥架绞车速度2(接口计算值)

@@ -50,6 +50,22 @@ type (
 	}
 )
 
+type setTheoryOptimalRequest struct {
+	ShipName                     string  `json:"shipName" binding:"required"`
+	Flow                         float64 `json:"flow" binding:"required"`
+	Concentration                float64 `json:"concentration" binding:"required"`
+	SPumpRpm                     float64 `json:"sPumpRpm" binding:"required"`
+	CutterDepth                  float64 `json:"cutterDepth" binding:"required"`
+	CarriageTravel               float64 `json:"carriageTravel" binding:"required"`
+	HorizontalSpeed              float64 `json:"horizontalSpeed" binding:"required"`
+	BoosterPumpDischargePressure float64 `json:"boosterPumpDischargePressure" binding:"required"`
+	VacuumDegree                 float64 `json:"vacuumDegree" binding:"required"`
+}
+
+type getTheoryOptimalRequest struct {
+	ShipName string `form:"shipName" binding:"required"`
+}
+
 type commonResponse struct {
 	Code    errcode `json:"code"`
 	Message string  `json:"message"`

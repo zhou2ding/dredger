@@ -57,12 +57,14 @@ func SetupRouter(svc *service.Service) *gin.Engine {
 	{
 		api.POST("/data/import", h.ImportData)
 		api.GET("/shifts/statistics", h.GetShiftStats)
-		api.GET("/data/column/list", h.GetColumns)
+		api.GET("/data/column/list/:shipName", h.GetColumns)
 		api.GET("/ship/list", h.GetShipList)
 		api.GET("/shifts/optimal", h.GetOptimalShift)
 		api.GET("/data/replay/:columnName", h.GetHistoryData)
 		api.GET("data/timerange/global", h.GetGlobalTimeRange)
 		api.GET("data/timerange/nonempty", h.GetNoneEmptyTimeRange)
+		api.POST("/data/theory/optimal", h.SetTheoryOptimal)
+		api.GET("/data/theory/optimal", h.GetTheoryOptimal)
 	}
 
 	return r

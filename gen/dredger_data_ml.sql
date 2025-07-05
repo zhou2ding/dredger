@@ -119,4 +119,4 @@ CREATE TABLE `dredger_data`
     `ship_deviation_angle` double DEFAULT NULL COMMENT '船体偏移工作线角度',
     PRIMARY KEY (`id`),
     KEY                    `idx_ship_time` (`ship_name`,`record_time`) COMMENT '船名和时间索引，用于快速查询'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='绞吸式挖泥船施工数据表'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='敏龙绞吸式挖泥船施工数据表'

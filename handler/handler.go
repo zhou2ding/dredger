@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"dredger/model"
 	"dredger/pkg/logger"
 	"dredger/service"
 	"github.com/gin-gonic/gin"
@@ -89,7 +90,7 @@ func (h *Handler) GetShipList(c *gin.Context) {
 }
 
 func (h *Handler) GetColumns(c *gin.Context) {
-	columns := h.svc.GetColumns()
+	columns := h.svc.GetColumns(c.Param("shipName"))
 	c.JSON(http.StatusOK, success(columns))
 }
 
@@ -155,4 +156,57 @@ func (h *Handler) GetNoneEmptyTimeRange(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, success(results))
+}
+
+func (h *Handler) SetTheoryOptimal(c *gin.Context) {
+	var req setTheoryOptimalRequest
+	// 从请求体中绑定 JSON 数据
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Logger.Errorf("设置理论最优参数失败，请求参数有误: %v", err)
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
+		return
+	}
+
+	// 将请求数据映射到 model 结构体
+	params := &model.TheoryOptimalParam{
+		ShipName:                     req.ShipName,
+		Flow:                         req.Flow,
+		Concentration:                req.Concentration,
+		SPumpRpm:                     req.SPumpRpm,
+		CutterDepth:                  req.CutterDepth,
+		CarriageTravel:               req.CarriageTravel,
+		HorizontalSpeed:              req.HorizontalSpeed,
+		BoosterPumpDischargePressure: req.BoosterPumpDischargePressure,
+		VacuumDegree:                 req.VacuumDegree,
+	}
+
+	// 调用 service 层处理业务逻辑
+	if err := h.svc.SetTheoryOptimalParams(params); err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+
+	// 成功后返回，data 可以为 nil 或者一个简单的成功提示
+	c.JSON(http.StatusOK, success(nil))
+}
+
+func (h *Handler) GetTheoryOptimal(c *gin.Context) {
+	var req getTheoryOptimalRequest
+	// 从 Query 参数中绑定 shipName
+	if err := c.ShouldBindQuery(&req); err != nil {
+		logger.Logger.Errorf("获取理论最优参数失败，请求参数有误: %v", err)
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
+		return
+	}
+
+	params, err := h.svc.GetTheoryOptimalParams(req.ShipName)
+	if err != nil {
+		// 这里是处理 service 层返回的真正的数据库错误
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+
+	// 如果 params 为 nil (即没找到记录)，success(nil) 会返回一个 data 为 null 的 JSON 对象
+	// 前端可以根据 data 是否为 null 来判断
+	c.JSON(http.StatusOK, success(params))
 }
