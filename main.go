@@ -65,6 +65,7 @@ func SetupRouter(svc *service.Service) *gin.Engine {
 		api.GET("data/timerange/nonempty", h.GetNoneEmptyTimeRange)
 		api.POST("/data/theory/optimal", h.SetTheoryOptimal)
 		api.GET("/data/theory/optimal", h.GetTheoryOptimal)
+		api.GET("/shifts/parameters", h.GetAllShiftParameters)
 	}
 
 	return r

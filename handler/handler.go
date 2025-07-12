@@ -210,3 +210,19 @@ func (h *Handler) GetTheoryOptimal(c *gin.Context) {
 	// 前端可以根据 data 是否为 null 来判断
 	c.JSON(http.StatusOK, success(params))
 }
+
+func (h *Handler) GetAllShiftParameters(c *gin.Context) {
+	var query commonRequest // 复用 commonRequest，它包含 ShipName, StartDate, EndDate
+	if err := c.ShouldBindQuery(&query); err != nil {
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
+		return
+	}
+
+	result, err := h.svc.GetAllShiftParameters(query.ShipName, query.StartDate, query.EndDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, success(result))
+}

@@ -869,3 +869,91 @@ func (s *Service) GetTheoryOptimalParams(shipName string) (*TheoryOptimalParamsD
 
 	return dto, nil
 }
+
+func (s *Service) GetAllShiftParameters(shipName string, startTime, endTime int64) ([]*ShiftWorkParams, error) {
+	var allShiftParams []*ShiftWorkParams
+	var err error
+
+	if strings.Contains(shipName, "华安龙") {
+		var records []*model.DredgerDataHl
+		err = s.db.Where("ship_name = ?", shipName).
+			Where("record_time BETWEEN ? AND ?", startTime, endTime).
+			Find(&records).Error
+		if err != nil {
+			logger.Logger.Errorf("[华安龙]查询所有班组参数数据失败: %v", err)
+			return nil, err
+		}
+
+		// 按班组（小时）进行分组
+		groups := make(map[int][]*model.DredgerDataHl)
+		for _, record := range records {
+			hour := time.UnixMilli(record.RecordTime).Hour()
+			switch {
+			case hour >= 0 && hour < 6:
+				groups[1] = append(groups[1], record)
+			case hour >= 6 && hour < 12:
+				groups[2] = append(groups[2], record)
+			case hour >= 12 && hour < 18:
+				groups[3] = append(groups[3], record)
+			default:
+				groups[4] = append(groups[4], record)
+			}
+		}
+
+		// 为每个班组计算参数
+		for shift := 1; shift <= 4; shift++ {
+			shiftRecords, exists := groups[shift]
+			if !exists || len(shiftRecords) == 0 {
+				continue
+			}
+
+			params := &ShiftWorkParams{
+				ShiftName:  shiftName(shift),
+				Parameters: calParamsHl(shiftRecords), // 调用 tool.go 中的现有函数
+			}
+			allShiftParams = append(allShiftParams, params)
+		}
+
+	} else if strings.Contains(shipName, "敏龙") {
+		var records []*model.DredgerDatum
+		err = s.db.Where("ship_name = ?", shipName).
+			Where("record_time BETWEEN ? AND ?", startTime, endTime).
+			Find(&records).Error
+		if err != nil {
+			logger.Logger.Errorf("[敏龙]查询所有班组参数数据失败: %v", err)
+			return nil, err
+		}
+
+		groups := make(map[int][]*model.DredgerDatum)
+		for _, record := range records {
+			hour := time.UnixMilli(record.RecordTime).Hour()
+			switch {
+			case hour >= 0 && hour < 6:
+				groups[1] = append(groups[1], record)
+			case hour >= 6 && hour < 12:
+				groups[2] = append(groups[2], record)
+			case hour >= 12 && hour < 18:
+				groups[3] = append(groups[3], record)
+			default:
+				groups[4] = append(groups[4], record)
+			}
+		}
+
+		for shift := 1; shift <= 4; shift++ {
+			shiftRecords, exists := groups[shift]
+			if !exists || len(shiftRecords) == 0 {
+				continue
+			}
+
+			params := &ShiftWorkParams{
+				ShiftName:  shiftName(shift),
+				Parameters: calParams(shiftRecords), // 调用 tool.go 中的现有函数
+			}
+			allShiftParams = append(allShiftParams, params)
+		}
+	} else {
+		return nil, fmt.Errorf("船名[%s]暂不支持此统计", shipName)
+	}
+
+	return allShiftParams, nil
+}
