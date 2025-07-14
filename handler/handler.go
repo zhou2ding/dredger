@@ -4,6 +4,7 @@ import (
 	"dredger/model"
 	"dredger/pkg/logger"
 	"dredger/service"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -219,6 +220,44 @@ func (h *Handler) GetAllShiftParameters(c *gin.Context) {
 	}
 
 	result, err := h.svc.GetAllShiftParameters(query.ShipName, query.StartDate, query.EndDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, success(result))
+}
+
+func (h *Handler) GenerateSolid(c *gin.Context) {
+	var req genSolidRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid JSON payload: %v", err)})
+		return
+	}
+
+	params := service.ExecutionParams{
+		Action:                  req.Action,
+		GeologyDbFile:           req.GeologyDbFile,
+		CalculationBoundaryFile: req.CalculationBoundaryFile,
+		DesignDepthFile:         req.DesignDepthFile,
+		MudlineFile:             req.MudlineFile,
+		ReferenceZ:              req.ReferenceZ,
+		GridDistanceXY:          req.GridDistanceXY,
+		GridDistanceZ:           req.GridDistanceZ,
+		Threshold:               req.Threshold,
+		PileX:                   req.PileX,
+		PileY:                   req.PileY,
+		ProfileX1:               req.ProfileX1,
+		ProfileY1:               req.ProfileY1,
+		ProfileX2:               req.ProfileX2,
+		ProfileY2:               req.ProfileY2,
+		SpecifiedX:              req.SpecifiedX,
+		SpecifiedY:              req.SpecifiedY,
+		SpecifiedLength:         req.SpecifiedLength,
+		SpecifiedWidth:          req.SpecifiedWidth,
+	}
+
+	result, err := h.svc.ExecuteSolidProgram(params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
 		return

@@ -3,11 +3,13 @@ package service
 import (
 	"dredger/dao"
 	"dredger/pkg/logger"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm/clause"
 	"io"
+	"os/exec"
 	"reflect"
 	"sort"
 	"strconv"
@@ -956,4 +958,58 @@ func (s *Service) GetAllShiftParameters(shipName string, startTime, endTime int6
 	}
 
 	return allShiftParams, nil
+}
+
+func (s *Service) ExecuteSolidProgram(params ExecutionParams) (SolidResult, error) {
+	executable := "python"
+	script := "solid.py"
+	args := []string{script}
+
+	// 使用反射来动态构建命令行参数，这部分逻辑不变。
+	v := reflect.ValueOf(params)
+	t := v.Type()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		fieldName := t.Field(i).Name
+		argName := fmt.Sprintf("--%c%s", fieldName[0]+32, fieldName[1:])
+
+		isZero := false
+		switch field.Kind() {
+		case reflect.String:
+			if field.String() == "" {
+				isZero = true
+			}
+		case reflect.Float64:
+			if field.Float() == 0.0 {
+				isZero = true
+			}
+		default:
+			return nil, errors.New("invalid field type")
+		}
+
+		if !isZero {
+			args = append(args, argName)
+			if field.Kind() == reflect.String {
+				args = append(args, field.String())
+			} else {
+				args = append(args, strconv.FormatFloat(field.Float(), 'f', -1, 64))
+			}
+		}
+	}
+
+	cmd := exec.Command(executable, args...)
+	fmt.Printf("Executing command: %s\n", cmd.String())
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("error executing solid.exe: %v\nOutput: %s", err, string(output))
+	}
+
+	var result SolidResult
+	if err = json.Unmarshal(output, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON from script: %v\nRaw output: %s", err, string(output))
+	}
+
+	return result, nil
 }

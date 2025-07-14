@@ -105,3 +105,27 @@ type TheoryOptimalParamsDTO struct {
 	BoosterPumpDischargePressure float64   `json:"boosterPumpDischargePressure"`
 	VacuumDegree                 float64   `json:"vacuumDegree"`
 }
+
+type ExecutionParams struct {
+	Action                  string
+	GeologyDbFile           string
+	CalculationBoundaryFile string
+	DesignDepthFile         string
+	MudlineFile             string
+	ReferenceZ              float64
+	GridDistanceXY          float64
+	GridDistanceZ           float64
+	Threshold               float64
+	PileX                   float64
+	PileY                   float64
+	ProfileX1               float64
+	ProfileY1               float64
+	ProfileX2               float64
+	ProfileY2               float64
+	SpecifiedX              float64
+	SpecifiedY              float64
+	SpecifiedLength         float64
+	SpecifiedWidth          float64
+}
+
+type SolidResult map[string]any

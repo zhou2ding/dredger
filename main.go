@@ -82,6 +82,12 @@ func ConnectSensorData(c *gin.Context) {
 }
 
 func main() {
+	if _, err := os.Stat("tmp"); os.IsNotExist(err) {
+		if err = os.Mkdir("tmp", 0755); err != nil {
+			log.Fatalf("Failed to create tmp directory: %v", err)
+		}
+	}
+
 	conf.InitConf("./dredger.yaml")
 	logger.InitLogger("dredger")
 

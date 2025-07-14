@@ -66,6 +66,28 @@ type getTheoryOptimalRequest struct {
 	ShipName string `form:"shipName" binding:"required"`
 }
 
+type genSolidRequest struct {
+	Action                  string  `json:"action"`
+	GeologyDbFile           string  `json:"geologyDbFile"`
+	CalculationBoundaryFile string  `json:"calculationBoundaryFile"`
+	DesignDepthFile         string  `json:"designDepthFile"`
+	MudlineFile             string  `json:"mudlineFile"`
+	ReferenceZ              float64 `json:"referenceZ"`
+	GridDistanceXY          float64 `json:"gridDistanceXY"`
+	GridDistanceZ           float64 `json:"gridDistanceZ"`
+	Threshold               float64 `json:"threshold"`
+	PileX                   float64 `json:"pileX"`
+	PileY                   float64 `json:"pileY"`
+	ProfileX1               float64 `json:"profileX1"`
+	ProfileY1               float64 `json:"profileY1"`
+	ProfileX2               float64 `json:"profileX2"`
+	ProfileY2               float64 `json:"profileY2"`
+	SpecifiedX              float64 `json:"specifiedX"`
+	SpecifiedY              float64 `json:"specifiedY"`
+	SpecifiedLength         float64 `json:"specifiedLength"`
+	SpecifiedWidth          float64 `json:"specifiedWidth"`
+}
+
 type commonResponse struct {
 	Code    errcode `json:"code"`
 	Message string  `json:"message"`
