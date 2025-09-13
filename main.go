@@ -131,7 +131,7 @@ func SetupRouter(svc *service.Service) *gin.Engine {
 		api.GET("/shifts/optimal", h.GetOptimalShift)
 		api.GET("/data/replay/:columnName", h.GetHistoryData)
 		api.GET("data/timerange/global", h.GetGlobalTimeRange)
-		api.GET("data-Tirange/nonempty", h.GetNoneEmptyTimeRange)
+		api.GET("data/timerange/nonempty", h.GetNoneEmptyTimeRange)
 		api.POST("/data/theory/optimal", h.SetTheoryOptimal)
 		api.GET("/data/theory/optimal", h.GetTheoryOptimal)
 		api.GET("/shifts/parameters", h.GetAllShiftParameters)
