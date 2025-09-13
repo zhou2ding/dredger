@@ -38,12 +38,12 @@ type (
 		Parameters ParameterStats `json:"parameters"`
 	}
 	ParameterStats struct {
-		HorizontalSpeed              HorizontalSpeed `json:"horizontalSpeed"`
-		CarriageTravel               Parameter       `json:"carriageTravel"`
-		CutterDepth                  Parameter       `json:"cutterDepth"`
-		SPumpRpm                     Parameter       `json:"sPumpRpm"`
-		Concentration                Parameter       `json:"concentration"`
 		Flow                         Parameter       `json:"flow"`
+		Concentration                Parameter       `json:"concentration"`
+		SPumpRpm                     Parameter       `json:"sPumpRpm"`
+		CutterDepth                  Parameter       `json:"cutterDepth"`
+		CarriageTravel               Parameter       `json:"carriageTravel"`
+		HorizontalSpeed              HorizontalSpeed `json:"horizontalSpeed"`
 		BoosterPumpDischargePressure Parameter       `json:"boosterPumpDischargePressure"`
 		VacuumDegree                 Parameter       `json:"vacuumDegree"`
 	}
