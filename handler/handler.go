@@ -1,12 +1,22 @@
 package handler
 
 import (
+	"context"
 	"dredger/model"
 	"dredger/pkg/logger"
 	"dredger/service"
 	"fmt"
+	"mime"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/cast"
+
 	"net/http"
+	"strconv"
+	"time"
 )
 
 type Handler struct {
@@ -264,4 +274,148 @@ func (h *Handler) GenerateSolid(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, success(result))
+}
+
+func (h *Handler) RunDemo(c *gin.Context) {
+	demoStr := c.Query("demo")
+	n, err := strconv.Atoi(demoStr)
+	if err != nil || n < 1 || n > 6 {
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, "invalid demo id"))
+		return
+	}
+	id := service.DemoID(n)
+
+	if err := c.Request.ParseMultipartForm(64 << 20); err != nil { // 64MB
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, "invalid multipart form"))
+		return
+	}
+	form := c.Request.MultipartForm
+
+	// 解析表单里非文件字段
+	p := &service.DemoParams{
+		RefZ:      cast.ToFloat64(c.PostForm("ref_z")),
+		GridXY:    cast.ToFloat64(c.PostForm("grid_xy")),
+		GridZ:     cast.ToFloat64(c.PostForm("grid_z")),
+		CX:        cast.ToFloat64(c.PostForm("cx")),
+		CY:        cast.ToFloat64(c.PostForm("cy")),
+		Length:    cast.ToFloat64(c.PostForm("length")),
+		Width:     cast.ToFloat64(c.PostForm("width")),
+		Depth:     cast.ToFloat64(c.PostForm("depth")),
+		Height:    cast.ToFloat64(c.PostForm("height")),
+		X1:        cast.ToFloat64(c.PostForm("x1")),
+		Y1:        cast.ToFloat64(c.PostForm("y1")),
+		X2:        cast.ToFloat64(c.PostForm("x2")),
+		Y2:        cast.ToFloat64(c.PostForm("y2")),
+		Threshold: cast.ToFloat64(c.PostForm("threshold")),
+	}
+
+	// 上下文 + 超时（防止卡死）
+	ctx, cancel := context.WithTimeout(c, 10*time.Minute)
+	defer cancel()
+
+	newFiles, err := h.svc.RunDemo(ctx, id, p, form)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, success(newFiles))
+}
+
+type openFileRequest struct {
+	Path string `json:"path"`
+}
+
+func (h *Handler) OpenFile(c *gin.Context) {
+	var req openFileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, "bad json"))
+		return
+	}
+	abs, err := filepath.Abs(req.Path)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, "bad path"))
+		return
+	}
+	// 只允许 pys 目录下
+	root, _ := filepath.Abs("./pys")
+	if !strings.HasPrefix(abs, root) {
+		c.JSON(http.StatusForbidden, fail(errBadRequest, "path not allowed"))
+		return
+	}
+	// Windows: 用默认程序打开
+	cmd := exec.Command("cmd", "/C", "start", "", abs)
+	if err := cmd.Start(); err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, success(nil))
+}
+
+func (h *Handler) ServeFile(c *gin.Context) {
+	var req serveReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, "missing path"))
+		return
+	}
+	abs, err := filepath.Abs(req.Path)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, "bad path"))
+		return
+	}
+
+	root, _ := filepath.Abs("./pys")
+	if !strings.HasPrefix(abs, root) {
+		c.JSON(http.StatusForbidden, fail(errBadRequest, "path not allowed"))
+		return
+	}
+
+	// 根据扩展名设置 Content-Type（xlsx/ png/ html/ txt）
+	if ct := mime.TypeByExtension(strings.ToLower(filepath.Ext(abs))); ct != "" {
+		c.Header("Content-Type", ct)
+	}
+	c.File(abs)
+}
+
+func (h *Handler) GetLatestResults(c *gin.Context) {
+	// ?ids=1,2,3
+	idsStr := c.Query("ids")
+	if idsStr == "" {
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, "missing ids query parameter"))
+		return
+	}
+
+	idParts := strings.Split(idsStr, ",")
+	var demoIDs []service.DemoID
+	for _, part := range idParts {
+		id, err := strconv.Atoi(part)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, fail(errBadRequest, "invalid id in ids list"))
+			return
+		}
+		demoIDs = append(demoIDs, service.DemoID(id))
+	}
+
+	results, err := h.svc.GetLatestResults(demoIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, success(results))
+}
+
+func (h *Handler) OpenLocation(c *gin.Context) {
+	var req OpenLocationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, "请求参数无效: "+err.Error()))
+		return
+	}
+
+	if err := h.svc.OpenLocation(req.Path); err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, success(nil))
 }

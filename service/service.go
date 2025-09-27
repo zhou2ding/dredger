@@ -1,22 +1,29 @@
 package service
 
 import (
-	"dredger/dao"
+	"context"
 	"dredger/pkg/logger"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/xuri/excelize/v2"
-	"gorm.io/gorm/clause"
 	"io"
+	"log"
+	"mime/multipart"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/xuri/excelize/v2"
+	"gorm.io/gorm/clause"
+
 	"dredger/model"
+
 	"gorm.io/gorm"
 )
 
@@ -24,12 +31,78 @@ const batchSize = 400
 
 type Service struct {
 	db *gorm.DB
+
+	demoBase string                         // ./pys
+	dataDir  string                         // ./pys/data
+	demoDirs map[DemoID]string              // 1..6 => ./pys/demoN
+	seen     map[DemoID]map[string]struct{} // 已知文件名
+	mu       sync.Mutex
+}
+
+func exeBaseDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		d, _ := os.Getwd()
+		return d
+	}
+	return filepath.Dir(exe)
+}
+
+func findProjectRootWith(subdir string) string {
+	dir, _ := os.Getwd()
+	for {
+		if _, err := os.Stat(filepath.Join(dir, subdir)); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return ""
 }
 
 func NewService(db *gorm.DB) *Service {
-	dao.SetDefault(db)
-	return &Service{
-		db: db,
+	base := exeBaseDir()
+	pysBase := filepath.Join(base, "pys")
+	if _, err := os.Stat(pysBase); err != nil {
+		if root := findProjectRootWith("pys"); root != "" {
+			pysBase = filepath.Join(root, "pys")
+		}
+	}
+	dataDir := filepath.Join(pysBase, "data")
+
+	s := &Service{
+		db:       db,
+		demoBase: pysBase, // 绝对
+		dataDir:  dataDir, // 绝对 ✅
+		demoDirs: map[DemoID]string{
+			Demo1: filepath.Join(pysBase, "demo1"),
+			Demo2: filepath.Join(pysBase, "demo2"),
+			Demo3: filepath.Join(pysBase, "demo3"),
+			Demo4: filepath.Join(pysBase, "demo4"),
+			Demo5: filepath.Join(pysBase, "demo5"),
+			Demo6: filepath.Join(pysBase, "demo6"),
+		},
+		seen: make(map[DemoID]map[string]struct{}),
+	}
+	s.initDemoSeen()
+	return s
+}
+
+func (s *Service) initDemoSeen() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, dir := range s.demoDirs {
+		files, _ := os.ReadDir(dir)
+		m := make(map[string]struct{}, len(files))
+		for _, f := range files {
+			if !f.IsDir() {
+				m[f.Name()] = struct{}{}
+			}
+		}
+		s.seen[id] = m
 	}
 }
 
@@ -1012,4 +1085,292 @@ func (s *Service) ExecuteSolidProgram(params ExecutionParams) (SolidResult, erro
 	}
 
 	return result, nil
+}
+
+func (s *Service) saveUploadsToData(form *multipart.Form) (map[string]string, error) {
+	// key: 前端字段名 (geo_path/brd_path/design_xyz/mud_xyz)
+	// val: 保存后的绝对/相对路径（我们用相对路径：./pys/data/xxx.ext）
+	out := make(map[string]string)
+	if form == nil || len(form.File) == 0 {
+		return out, nil
+	}
+	if err := os.MkdirAll(s.dataDir, 0755); err != nil {
+		return nil, err
+	}
+	for field, fhs := range form.File {
+		if len(fhs) == 0 {
+			continue
+		}
+		fh := fhs[0]
+		src, err := fh.Open()
+		if err != nil {
+			return nil, err
+		}
+
+		dstPath := filepath.Join(s.dataDir, filepath.Base(fh.Filename))
+		dst, err := os.Create(dstPath)
+		if err != nil {
+			return nil, err
+		}
+		if _, err = io.Copy(dst, src); err != nil {
+			dst.Close()
+			return nil, err
+		}
+		out[field] = dstPath
+		dst.Close()
+		src.Close()
+	}
+	return out, nil
+}
+
+func (s *Service) RunDemo(ctx context.Context, id DemoID, params *DemoParams, form *multipart.Form) ([]GeneratedFile, error) {
+	// 1) 保存上传的文件到 ./pys/data
+	saved, err := s.saveUploadsToData(form) // 将 geo_path/brd_path/... 替换为保存后的路径
+	if err != nil {
+		return nil, err
+	}
+
+	// 将保存后的路径回填到 params；如果前端本来就传了相对路径，也以保存结果为准
+	if v, ok := saved["geo_path"]; ok {
+		params.GeoPath = v
+	}
+	if v, ok := saved["brd_path"]; ok {
+		params.BrdPath = v
+	}
+	if v, ok := saved["design_xyz"]; ok {
+		params.DesignXYZ = v
+	}
+	if v, ok := saved["mud_xyz"]; ok {
+		params.MudXYZ = v
+	}
+
+	// 2) 记录执行前已有文件
+	dir, ok := s.demoDirs[id]
+	if !ok {
+		return nil, fmt.Errorf("unknown demo id: %d", id)
+	}
+	before, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	beforeSet := make(map[string]struct{}, len(before))
+	for _, f := range before {
+		if !f.IsDir() {
+			beforeSet[f.Name()] = struct{}{}
+		}
+	}
+
+	// 3) 组装命令
+	exeName := fmt.Sprintf("Python_Demo_%d.exe", id)
+	exePath := filepath.Join(dir, exeName)
+
+	abs, _ := filepath.Abs(exePath)
+	pwd, _ := os.Getwd()
+	log.Printf("[DEBUG] cwd=%s exePath=%s abs=%s", pwd, exePath, abs)
+	if _, err := os.Stat(abs); err != nil {
+		log.Printf("[DEBUG] os.Stat(abs) error: %v", err)
+	}
+
+	// 统一把四个文件参数转成绝对路径（优先使用 saveUploadsToData 回填的路径）
+	// 兼容：即便前端没上传文件、只给了字符串路径，也会被规范成 data 目录下的绝对路径
+	params.GeoPath = makeAbsUnder(params.GeoPath, s.dataDir)
+	params.BrdPath = makeAbsUnder(params.BrdPath, s.dataDir)
+	params.DesignXYZ = makeAbsUnder(params.DesignXYZ, s.dataDir)
+	params.MudXYZ = makeAbsUnder(params.MudXYZ, s.dataDir)
+
+	// 可选：执行前做存在性检查，能更早报错定位
+	for _, p := range []struct{ label, path string }{
+		{"--geo_path", params.GeoPath},
+		{"--brd_path", params.BrdPath},
+		{"--design_xyz", params.DesignXYZ},
+		{"--mud_xyz", params.MudXYZ},
+	} {
+		if p.path != "" {
+			if _, err := os.Stat(p.path); err != nil {
+				return nil, fmt.Errorf("input file %s not found: %s (%v)", p.label, p.path, err)
+			}
+		}
+	}
+
+	args := []string{
+		"--geo_path", params.GeoPath,
+		"--brd_path", params.BrdPath,
+		"--design_xyz", params.DesignXYZ,
+		"--mud_xyz", params.MudXYZ,
+		"--ref_z", strconv.FormatFloat(params.RefZ, 'f', -1, 64),
+		"--grid_xy", strconv.FormatFloat(params.GridXY, 'f', -1, 64),
+		"--grid_z", strconv.FormatFloat(params.GridZ, 'f', -1, 64),
+	}
+	switch id {
+	case Demo3, Demo4:
+		args = append(args,
+			"--cx", fmt.Sprintf("%v", params.CX),
+			"--cy", fmt.Sprintf("%v", params.CY),
+			"--length", fmt.Sprintf("%v", params.Length),
+			"--width", fmt.Sprintf("%v", params.Width),
+			"--depth", fmt.Sprintf("%v", params.Depth),
+			"--height", fmt.Sprintf("%v", params.Height),
+		)
+	case Demo5:
+		args = append(args,
+			"--cx", fmt.Sprintf("%v", params.CX),
+			"--cy", fmt.Sprintf("%v", params.CY),
+		)
+	case Demo6:
+		args = append(args,
+			"--x1", fmt.Sprintf("%v", params.X1),
+			"--y1", fmt.Sprintf("%v", params.Y1),
+			"--x2", fmt.Sprintf("%v", params.X2),
+			"--y2", fmt.Sprintf("%v", params.Y2),
+			"--threshold", fmt.Sprintf("%v", params.Threshold),
+		)
+	}
+
+	// 4) 执行（阻塞至结束，前端显示“转圈”即可）
+	log.Printf("[DEBUG] exePath=%s ats=%v", abs, args)
+	cmd := exec.CommandContext(ctx, abs, args...)
+	// 重要：设置工作目录为对应 demo 目录，保证相对路径/依赖就近
+	cmd.Dir = dir
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("run %s failed: %v\nOutput: %s", exeName, err, string(output))
+	}
+
+	// 5) 扫描新增文件
+	after, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var news []GeneratedFile
+	for _, f := range after {
+		if f.IsDir() {
+			continue
+		}
+		if _, existed := beforeSet[f.Name()]; existed {
+			continue
+		}
+		info, _ := f.Info()
+		news = append(news, GeneratedFile{
+			Name: f.Name(),
+			Path: filepath.Join(dir, f.Name()),
+			Size: info.Size(),
+			Mod:  info.ModTime().UnixMilli(),
+			Ext:  strings.ToLower(filepath.Ext(f.Name())),
+		})
+	}
+
+	// 6) 更新“已知文件”集合（内存）
+	s.mu.Lock()
+	for _, nf := range news {
+		if s.seen[id] == nil {
+			s.seen[id] = make(map[string]struct{})
+		}
+		s.seen[id][nf.Name] = struct{}{}
+	}
+	s.mu.Unlock()
+
+	if len(news) > 0 {
+		logFilePath := filepath.Join(dir, "execution_log.json")
+
+		// 读取现有日志
+		var logs []ExecutionLogEntry
+		logFile, err := os.ReadFile(logFilePath)
+		if err == nil {
+			_ = json.Unmarshal(logFile, &logs)
+		}
+
+		// 添加新条目
+		newEntry := ExecutionLogEntry{
+			Timestamp: time.Now().UnixMilli(),
+			Files:     news,
+		}
+		logs = append(logs, newEntry)
+
+		// 写回文件
+		updatedLogs, err := json.MarshalIndent(logs, "", "  ")
+		if err == nil {
+			_ = os.WriteFile(logFilePath, updatedLogs, 0644)
+		} else {
+			logger.Logger.Warnf("写入执行日志 %s 失败: %v", logFilePath, err)
+		}
+	}
+
+	return news, nil
+}
+
+func (s *Service) GetLatestResult(id DemoID) (*ExecutionLogEntry, error) {
+	dir, ok := s.demoDirs[id]
+	if !ok {
+		return nil, fmt.Errorf("unknown demo id: %d", id)
+	}
+
+	logFilePath := filepath.Join(dir, "execution_log.json")
+
+	var logs []ExecutionLogEntry
+	logFile, err := os.ReadFile(logFilePath)
+	// 如果日志文件不存在，说明从未成功执行过，这不是一个错误
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	if err := json.Unmarshal(logFile, &logs); err != nil {
+		return nil, fmt.Errorf("解析日志文件 %s 失败: %w", logFilePath, err)
+	}
+
+	if len(logs) == 0 {
+		return nil, nil // 日志为空
+	}
+
+	// 按时间戳降序排序，找到最新的
+	sort.Slice(logs, func(i, j int) bool {
+		return logs[i].Timestamp > logs[j].Timestamp
+	})
+
+	return &logs[0], nil
+}
+
+func (s *Service) GetLatestResults(ids []DemoID) (map[DemoID]*ExecutionLogEntry, error) {
+	results := make(map[DemoID]*ExecutionLogEntry)
+	for _, id := range ids {
+		entry, err := s.GetLatestResult(id)
+		if err != nil {
+			// 如果只是某个demo的日志不存在，可以忽略
+			logger.Logger.Warnf("查询 demo %d 最新结果失败: %v", id, err)
+			continue
+		}
+		if entry != nil {
+			results[id] = entry
+		}
+	}
+	return results, nil
+}
+
+func (s *Service) OpenLocation(filePath string) error {
+	// 安全校验：再次确认路径在允许的pys目录下
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return fmt.Errorf("无效的路径: %s", filePath)
+	}
+
+	root, _ := filepath.Abs(s.demoBase) // s.demoBase 是 "./pys"
+	if !strings.HasPrefix(absPath, root) {
+		return fmt.Errorf("路径不允许访问: %s", filePath)
+	}
+
+	// 获取文件所在的目录
+	dir := filepath.Dir(absPath)
+
+	// 在Windows上，使用 explorer 命令打开目录
+	cmd := exec.Command("explorer", dir)
+	if err := cmd.Start(); err != nil { // 使用 Start() 而不是 Run()，避免阻塞后端服务
+		logger.Logger.Errorf("打开目录 %s 失败: %v", dir, err)
+		return fmt.Errorf("无法打开目录: %v", err)
+	}
+
+	return nil
 }

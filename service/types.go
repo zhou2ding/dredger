@@ -129,3 +129,50 @@ type ExecutionParams struct {
 }
 
 type SolidResult map[string]any
+
+type DemoID int
+
+const (
+	Demo1 DemoID = 1
+	Demo2 DemoID = 2
+	Demo3 DemoID = 3
+	Demo4 DemoID = 4
+	Demo5 DemoID = 5
+	Demo6 DemoID = 6
+)
+
+type DemoParams struct {
+	GeoPath   string // 保存后的文件名，后端负责落盘；也允许前端传自定义名
+	BrdPath   string
+	DesignXYZ string
+	MudXYZ    string
+	RefZ      float64
+	GridXY    float64
+	GridZ     float64
+	// Demo3/4
+	CX     float64
+	CY     float64
+	Length float64
+	Width  float64
+	Depth  float64
+	Height float64
+	// Demo6
+	X1        float64
+	Y1        float64
+	X2        float64
+	Y2        float64
+	Threshold float64
+}
+
+type GeneratedFile struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Size int64  `json:"size"`
+	Mod  int64  `json:"mod"` // UnixMilli
+	Ext  string `json:"ext"`
+}
+
+type ExecutionLogEntry struct {
+	Timestamp int64           `json:"timestamp"`
+	Files     []GeneratedFile `json:"files"`
+}

@@ -88,6 +88,14 @@ type genSolidRequest struct {
 	SpecifiedWidth          float64 `json:"specifiedWidth"`
 }
 
+type serveReq struct {
+	Path string `form:"path" json:"path" binding:"required"`
+}
+
+type OpenLocationRequest struct {
+	Path string `json:"path" binding:"required"`
+}
+
 type commonResponse struct {
 	Code    errcode `json:"code"`
 	Message string  `json:"message"`

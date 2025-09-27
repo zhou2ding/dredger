@@ -3,6 +3,8 @@ package service
 import (
 	"dredger/model"
 	"math"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -274,4 +276,31 @@ func calculateStats(data []float64) Parameter {
 
 func round(x float64) float64 {
 	return math.Round(x*100) / 100
+}
+
+// 去掉收集到的 Windows 字符串路径上可能的引号（前端/复制粘贴容易带）
+func stripQuotes(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, `"`)
+	s = strings.TrimSuffix(s, `"`)
+	s = strings.TrimPrefix(s, `'`)
+	s = strings.TrimSuffix(s, `'`)
+	return s
+}
+
+// 把 p 规范化为绝对路径：
+// - 如果 p 本来就是绝对路径，直接 Clean 后返回
+// - 如果是相对路径，则认为它应该在 dataDir 下面（也就是 ./pys/data），Join 后返回绝对路径
+func makeAbsUnder(p string, dataDir string) string {
+	if p == "" {
+		return ""
+	}
+	p = stripQuotes(p)
+	// Windows 下判断绝对路径：有盘符或 UNC（\\server\share）
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p)
+	}
+	// 相对路径的场景（例如 ".\\pys\\data\\test1.mdb" 或 "pys\\data\\test1.mdb"）
+	// 统一接到 dataDir 下
+	return filepath.Clean(filepath.Join(dataDir, p))
 }

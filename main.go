@@ -358,6 +358,11 @@ func SetupRouter(svc *service.Service) *gin.Engine {
 		api.POST("/data/theory/optimal", h.SetTheoryOptimal)
 		api.GET("/data/theory/optimal", h.GetTheoryOptimal)
 		api.GET("/shifts/parameters", h.GetAllShiftParameters)
+		api.POST("/demos/run", h.RunDemo)    // 上传+执行+返回新增文件
+		api.POST("/files/open", h.OpenFile)  // Windows 打开文件
+		api.GET("/files/serve", h.ServeFile) // 预览直链：/v1/files/serve?path=...
+		api.GET("/demos/results/latest", h.GetLatestResults)
+		api.POST("/files/open-location", h.OpenLocation)
 
 		// WebSocket路由
 		api.GET("/ws/sensor", ConnectSensorData)
