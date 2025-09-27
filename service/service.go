@@ -584,7 +584,7 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 				Q := r.FlowRate
 				pw1 := 0.8 * Q * (P2 - P1)
 				pw2 := 0.8 * Q * (P3 - P2)
-				totalPower += (pw1 + pw2)
+				totalPower += pw1 + pw2
 			}
 			avgPower := totalPower / float64(len(shiftRecords))
 			totalEnergy := avgPower * (duration / 60)

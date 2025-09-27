@@ -62,6 +62,8 @@ func calParams(records []*model.DredgerDatum) ParameterStats {
 		warning                       string
 	)
 
+	cfg := getCfg(records[0].ShipName)
+
 	maxOutputRate := -1.0
 	maxIndex := 0
 
@@ -77,6 +79,7 @@ func calParams(records []*model.DredgerDatum) ParameterStats {
 		concentrations[i] = r.Concentration
 		flows[i] = r.FlowRate
 		boosterPumpDischargePressures[i] = r.BoosterPumpDischargePressure
+		vacuumDegrees[i] = calcVacuumKPa(r, cfg)
 		if r.OutputRate > 0 && r.TransverseSpeed == 0 {
 			currentTime := r.RecordTime
 			targetTime := currentTime + calHorizontalSpeedTimeDuration // 5分钟后的时间戳
@@ -137,6 +140,7 @@ func calParams(records []*model.DredgerDatum) ParameterStats {
 	concentration.MaxProductionParam = round(concentrations[maxIndex])
 	flow.MaxProductionParam = round(flows[maxIndex])
 	boosterPumpDischargePressure.MaxProductionParam = round(boosterPumpDischargePressures[maxIndex])
+	vacuumDegree.MaxProductionParam = round(vacuumDegrees[maxIndex])
 
 	return ParameterStats{
 		HorizontalSpeed:              horizontalSpeed,
@@ -246,12 +250,18 @@ func calParamsHl(records []*model.DredgerDataHl) ParameterStats {
 
 // 统计计算通用函数
 func calculateStats(data []float64) Parameter {
-	if len(data) == 0 {
+	valid := make([]float64, 0, len(data))
+	for _, v := range data {
+		if !math.IsNaN(v) {
+			valid = append(valid, v)
+		}
+	}
+	if len(valid) == 0 {
 		return Parameter{}
 	}
 	var sum, sumSquares float64
-	minVal, maxVal := data[0], data[0]
-	for _, v := range data {
+	minVal, maxVal := valid[0], valid[0]
+	for _, v := range valid {
 		sum += v
 		sumSquares += v * v
 		if v < minVal {
@@ -261,8 +271,7 @@ func calculateStats(data []float64) Parameter {
 			maxVal = v
 		}
 	}
-
-	n := float64(len(data))
+	n := float64(len(valid))
 	mean := sum / n
 	variance := (sumSquares / n) - (mean * mean)
 
