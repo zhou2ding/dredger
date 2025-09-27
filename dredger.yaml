@@ -8,5 +8,6 @@ log:
 frontend:
   host: "*"
 database:
-  host: "36.133.97.26:26033"
+#  host: "36.133.97.26:26033"
+  host: "127.0.0.5"
   password: "5023152"

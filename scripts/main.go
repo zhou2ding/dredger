@@ -5,11 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/xuri/excelize/v2"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"gorm.io/gorm/logger"
 	"io"
 	"log"
 	"os"
@@ -19,6 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xuri/excelize/v2"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
 var db *gorm.DB
