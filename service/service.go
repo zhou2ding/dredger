@@ -1634,3 +1634,134 @@ func (s *Service) OpenLocation(filePath string) error {
 
 	return nil
 }
+
+func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
+	cfg := getCfg(shipName)
+	var estimatedVacuum float64
+
+	if strings.Contains(shipName, "华安龙") {
+		// --- 性能优化：只查询需要的字段 ---
+		// 包括直接返回给前端的字段，以及计算“预估真空度”所需的字段
+		requiredColumns := []string{
+			"record_time", "underwater_pump_suction_vacuum", "flow_rate", "concentration",
+			"hourly_output_rate", "bridge_depth", "cutter_speed", "underwater_pump_speed",
+			"mud_pump_1_speed", "mud_pump_2_speed", "underwater_pump_discharge_pressure",
+			"mud_pump_1_discharge_pressure", "mud_pump_2_discharge_pressure", "gps1_speed",
+			"water_density", "density", "field_slurry_density", "flow_velocity",
+			"ear_draft", "left_ear_draft", "right_ear_draft",
+		}
+
+		var records []*model.DredgerDataHl
+		err := s.db.Select(requiredColumns).Order("record_time asc").Where("ship_name = ?", shipName).Find(&records).Error
+		if err != nil {
+			logger.Logger.Errorf("[华安龙]查询回放数据失败: %v", err)
+			return nil, err
+		}
+
+		result := &PlaybackData{
+			Timestamps:             make([]int64, 0, len(records)),
+			ActualVacuum:           make([]float64, 0, len(records)),
+			EstimatedVacuum:        make([]float64, 0, len(records)),
+			FlowRate:               make([]float64, 0, len(records)),
+			Concentration:          make([]float64, 0, len(records)),
+			ProductionRate:         make([]float64, 0, len(records)),
+			LadderDepth:            make([]float64, 0, len(records)),
+			CutterRpm:              make([]float64, 0, len(records)),
+			SubmergedPumpRpm:       make([]float64, 0, len(records)),
+			MudPump1Rpm:            make([]float64, 0, len(records)),
+			MudPump2Rpm:            make([]float64, 0, len(records)),
+			SubmergedPumpDischarge: make([]float64, 0, len(records)),
+			MudPump1Discharge:      make([]float64, 0, len(records)),
+			MudPump2Discharge:      make([]float64, 0, len(records)),
+			GpsSpeed:               make([]float64, 0, len(records)),
+		}
+
+		for _, r := range records {
+			estimatedVacuum = calcVacuumKPaFromHL(r, cfg)
+			if math.IsNaN(estimatedVacuum) || math.IsInf(estimatedVacuum, 0) {
+				estimatedVacuum = 0
+			}
+
+			result.Timestamps = append(result.Timestamps, r.RecordTime)
+			// --- 字段修正：使用 underwater_pump_suction_vacuum ---
+			result.ActualVacuum = append(result.ActualVacuum, r.UnderwaterPumpSuctionVacuum)
+			result.EstimatedVacuum = append(result.EstimatedVacuum, estimatedVacuum/100)
+			result.FlowRate = append(result.FlowRate, r.FlowRate)
+			result.Concentration = append(result.Concentration, r.Concentration)
+			result.ProductionRate = append(result.ProductionRate, r.HourlyOutputRate)
+			result.LadderDepth = append(result.LadderDepth, r.BridgeDepth)
+			result.CutterRpm = append(result.CutterRpm, r.CutterSpeed)
+			result.SubmergedPumpRpm = append(result.SubmergedPumpRpm, r.UnderwaterPumpSpeed)
+			result.MudPump1Rpm = append(result.MudPump1Rpm, r.MudPump1Speed)
+			result.MudPump2Rpm = append(result.MudPump2Rpm, r.MudPump2Speed)
+			result.SubmergedPumpDischarge = append(result.SubmergedPumpDischarge, r.UnderwaterPumpDischargePressure)
+			result.MudPump1Discharge = append(result.MudPump1Discharge, r.MudPump1DischargePressure)
+			result.MudPump2Discharge = append(result.MudPump2Discharge, r.MudPump2DischargePressure)
+			result.GpsSpeed = append(result.GpsSpeed, r.Gps1Speed)
+		}
+		return result, nil
+
+	} else if strings.Contains(shipName, "敏龙") {
+		// --- 性能优化：只查询需要的字段 ---
+		requiredColumns := []string{
+			"record_time", "underwater_pump_suction_vacuum", "flow_rate", "concentration",
+			"output_rate", "cutter_depth", "cutter_speed", "underwater_pump_speed",
+			"gps1_speed", "water_density", "density", "field_slurry_density",
+			"mud_pipe_diameter", "flow_velocity", "ear_draft", "left_ear_draft",
+			"right_ear_draft", "ear_to_bottom_distance",
+		}
+
+		var records []*model.DredgerDatum
+		err := s.db.Select(requiredColumns).Order("record_time asc").Where("ship_name = ?", shipName).Find(&records).Error
+		if err != nil {
+			logger.Logger.Errorf("[敏龙]查询回放数据失败: %v", err)
+			return nil, err
+		}
+
+		result := &PlaybackData{
+			Timestamps:             make([]int64, 0, len(records)),
+			ActualVacuum:           make([]float64, 0, len(records)),
+			EstimatedVacuum:        make([]float64, 0, len(records)),
+			FlowRate:               make([]float64, 0, len(records)),
+			Concentration:          make([]float64, 0, len(records)),
+			ProductionRate:         make([]float64, 0, len(records)),
+			LadderDepth:            make([]float64, 0, len(records)),
+			CutterRpm:              make([]float64, 0, len(records)),
+			SubmergedPumpRpm:       make([]float64, 0, len(records)),
+			MudPump1Rpm:            make([]float64, 0, len(records)),
+			MudPump2Rpm:            make([]float64, 0, len(records)),
+			SubmergedPumpDischarge: make([]float64, 0, len(records)),
+			MudPump1Discharge:      make([]float64, 0, len(records)),
+			MudPump2Discharge:      make([]float64, 0, len(records)),
+			GpsSpeed:               make([]float64, 0, len(records)),
+		}
+
+		for _, r := range records {
+			estimatedVacuum = calcVacuumKPa(r, cfg)
+			if math.IsNaN(estimatedVacuum) || math.IsInf(estimatedVacuum, 0) {
+				estimatedVacuum = 0
+			}
+
+			result.Timestamps = append(result.Timestamps, r.RecordTime)
+			// --- 字段修正：使用 underwater_pump_suction_vacuum ---
+			result.ActualVacuum = append(result.ActualVacuum, r.UnderwaterPumpSuctionVacuum)
+			result.EstimatedVacuum = append(result.EstimatedVacuum, estimatedVacuum/100)
+			result.FlowRate = append(result.FlowRate, r.FlowRate)
+			result.Concentration = append(result.Concentration, r.Concentration)
+			result.ProductionRate = append(result.ProductionRate, r.OutputRate)
+			result.LadderDepth = append(result.LadderDepth, r.CutterDepth)
+			result.CutterRpm = append(result.CutterRpm, r.CutterSpeed)
+			result.SubmergedPumpRpm = append(result.SubmergedPumpRpm, r.UnderwaterPumpSpeed)
+			result.MudPump1Rpm = append(result.MudPump1Rpm, 0)
+			result.MudPump2Rpm = append(result.MudPump2Rpm, 0)
+			result.SubmergedPumpDischarge = append(result.SubmergedPumpDischarge, 0)
+			result.MudPump1Discharge = append(result.MudPump1Discharge, 0)
+			result.MudPump2Discharge = append(result.MudPump2Discharge, 0)
+			result.GpsSpeed = append(result.GpsSpeed, r.Gps1Speed)
+		}
+		return result, nil
+
+	} else {
+		return nil, fmt.Errorf("船名[%s]暂不支持回放", shipName)
+	}
+}

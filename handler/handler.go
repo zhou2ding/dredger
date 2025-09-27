@@ -419,3 +419,20 @@ func (h *Handler) OpenLocation(c *gin.Context) {
 
 	c.JSON(http.StatusOK, success(nil))
 }
+
+func (h *Handler) GetPlaybackData(c *gin.Context) {
+	var query getPlaybackDataRequest
+	if err := c.ShouldBindQuery(&query); err != nil {
+		logger.Logger.Errorf("请求参数有误: %v", err)
+		c.JSON(http.StatusBadRequest, fail(errBadRequest, err.Error()))
+		return
+	}
+
+	data, err := h.svc.GetPlaybackData(query.ShipName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, fail(errInternalServer, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, success(data))
+}

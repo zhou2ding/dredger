@@ -363,6 +363,7 @@ func SetupRouter(svc *service.Service) *gin.Engine {
 		api.GET("/files/serve", h.ServeFile) // 预览直链：/v1/files/serve?path=...
 		api.GET("/demos/results/latest", h.GetLatestResults)
 		api.POST("/files/open-location", h.OpenLocation)
+		api.GET("/data/playback", h.GetPlaybackData)
 
 		// WebSocket路由
 		api.GET("/ws/sensor", ConnectSensorData)

@@ -176,3 +176,21 @@ type ExecutionLogEntry struct {
 	Timestamp int64           `json:"timestamp"`
 	Files     []GeneratedFile `json:"files"`
 }
+
+type PlaybackData struct {
+	Timestamps             []int64   `json:"timestamps"`
+	ActualVacuum           []float64 `json:"actualVacuum"`
+	EstimatedVacuum        []float64 `json:"estimatedVacuum"`
+	FlowRate               []float64 `json:"flowRate"`
+	Concentration          []float64 `json:"concentration"`
+	ProductionRate         []float64 `json:"productionRate"`
+	LadderDepth            []float64 `json:"ladderDepth"`
+	CutterRpm              []float64 `json:"cutterRpm"`
+	SubmergedPumpRpm       []float64 `json:"submergedPumpRpm"`
+	MudPump1Rpm            []float64 `json:"mudPump1Rpm"`
+	MudPump2Rpm            []float64 `json:"mudPump2Rpm"`
+	SubmergedPumpDischarge []float64 `json:"submergedPumpDischarge"`
+	MudPump1Discharge      []float64 `json:"mudPump1Discharge"`
+	MudPump2Discharge      []float64 `json:"mudPump2Discharge"`
+	GpsSpeed               []float64 `json:"gpsSpeed"`
+}

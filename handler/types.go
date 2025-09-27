@@ -96,6 +96,10 @@ type OpenLocationRequest struct {
 	Path string `json:"path" binding:"required"`
 }
 
+type getPlaybackDataRequest struct {
+	ShipName string `form:"shipName" binding:"required"`
+}
+
 type commonResponse struct {
 	Code    errcode `json:"code"`
 	Message string  `json:"message"`
