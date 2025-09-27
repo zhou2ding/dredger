@@ -867,7 +867,7 @@ func (s *Service) GetShipList() ([]string, error) {
 		}
 	}
 
-	sort.Strings(allShips)
+	sort.Sort(sort.Reverse(sort.StringSlice(allShips)))
 	return allShips, nil
 }
 
@@ -1101,6 +1101,7 @@ func (s *Service) GetGlobalTimeRange() ([]*GlobalTimeRange, error) {
 	err := s.db.Model(&model.DataDate{}).
 		Select("ship_name, MIN(date) as start_date, MAX(date) as end_date").
 		Group("ship_name").
+		Order("ship_name desc").
 		Scan(&records).Error
 	if err != nil {
 		logger.Logger.Errorf("查询全局时间范围失败: %v", err)
@@ -1640,15 +1641,12 @@ func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
 	var estimatedVacuum float64
 
 	if strings.Contains(shipName, "华安龙") {
-		// --- 性能优化：只查询需要的字段 ---
-		// 包括直接返回给前端的字段，以及计算“预估真空度”所需的字段
 		requiredColumns := []string{
 			"record_time", "underwater_pump_suction_vacuum", "flow_rate", "concentration",
-			"hourly_output_rate", "bridge_depth", "cutter_speed", "underwater_pump_speed",
-			"mud_pump_1_speed", "mud_pump_2_speed", "underwater_pump_discharge_pressure",
-			"mud_pump_1_discharge_pressure", "mud_pump_2_discharge_pressure", "gps1_speed",
-			"water_density", "density", "field_slurry_density", "flow_velocity",
-			"ear_draft", "left_ear_draft", "right_ear_draft",
+			"underwater_pump_speed", "bridge_depth", "trolley_travel", "transverse_speed",
+			"underwater_pump_discharge_pressure", "hourly_output_rate", "flow_velocity", "density",
+			// 以下为计算所需字段
+			"water_density", "field_slurry_density", "ear_draft", "left_ear_draft", "right_ear_draft",
 		}
 
 		var records []*model.DredgerDataHl
@@ -1659,58 +1657,65 @@ func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
 		}
 
 		result := &PlaybackData{
-			Timestamps:             make([]int64, 0, len(records)),
-			ActualVacuum:           make([]float64, 0, len(records)),
-			EstimatedVacuum:        make([]float64, 0, len(records)),
-			FlowRate:               make([]float64, 0, len(records)),
-			Concentration:          make([]float64, 0, len(records)),
-			ProductionRate:         make([]float64, 0, len(records)),
-			LadderDepth:            make([]float64, 0, len(records)),
-			CutterRpm:              make([]float64, 0, len(records)),
-			SubmergedPumpRpm:       make([]float64, 0, len(records)),
-			MudPump1Rpm:            make([]float64, 0, len(records)),
-			MudPump2Rpm:            make([]float64, 0, len(records)),
-			SubmergedPumpDischarge: make([]float64, 0, len(records)),
-			MudPump1Discharge:      make([]float64, 0, len(records)),
-			MudPump2Discharge:      make([]float64, 0, len(records)),
-			GpsSpeed:               make([]float64, 0, len(records)),
+			Timestamps:                   make([]int64, 0, len(records)),
+			ActualVacuum:                 make([]float64, 0, len(records)),
+			EstimatedVacuum:              make([]float64, 0, len(records)),
+			FlowRate:                     make([]float64, 0, len(records)),
+			Concentration:                make([]float64, 0, len(records)),
+			SubmergedPumpRpm:             make([]float64, 0, len(records)),
+			LadderDepth:                  make([]float64, 0, len(records)),
+			CarriageTravel:               make([]float64, 0, len(records)),
+			TransverseSpeed:              make([]float64, 0, len(records)),
+			BoosterPumpDischargePressure: make([]float64, 0, len(records)),
+			ProductionRate:               make([]float64, 0, len(records)),
+			FlowVelocity:                 make([]float64, 0, len(records)),
+			Density:                      make([]float64, 0, len(records)),
 		}
 
 		for _, r := range records {
-			estimatedVacuum = calcVacuumKPaFromHL(r, cfg)
+			datumForCalc := &model.DredgerDatum{
+				WaterDensity:       r.WaterDensity,
+				Density:            r.Density,
+				FieldSlurryDensity: r.FieldSlurryDensity,
+				FlowVelocity:       r.FlowVelocity,
+				FlowRate:           r.FlowRate,
+				CutterDepth:        r.BridgeDepth,
+				EarDraft:           r.EarDraft,
+				LeftEarDraft:       r.LeftEarDraft,
+				RightEarDraft:      r.RightEarDraft,
+			}
+			estimatedVacuum = calcVacuumKPa(datumForCalc, cfg)
 			if math.IsNaN(estimatedVacuum) || math.IsInf(estimatedVacuum, 0) {
 				estimatedVacuum = 0
 			}
 
 			result.Timestamps = append(result.Timestamps, r.RecordTime)
-			// --- 字段修正：使用 underwater_pump_suction_vacuum ---
 			result.ActualVacuum = append(result.ActualVacuum, r.UnderwaterPumpSuctionVacuum)
 			result.EstimatedVacuum = append(result.EstimatedVacuum, estimatedVacuum/100)
 			result.FlowRate = append(result.FlowRate, r.FlowRate)
 			result.Concentration = append(result.Concentration, r.Concentration)
-			result.ProductionRate = append(result.ProductionRate, r.HourlyOutputRate)
-			result.LadderDepth = append(result.LadderDepth, r.BridgeDepth)
-			result.CutterRpm = append(result.CutterRpm, r.CutterSpeed)
 			result.SubmergedPumpRpm = append(result.SubmergedPumpRpm, r.UnderwaterPumpSpeed)
-			result.MudPump1Rpm = append(result.MudPump1Rpm, r.MudPump1Speed)
-			result.MudPump2Rpm = append(result.MudPump2Rpm, r.MudPump2Speed)
-			result.SubmergedPumpDischarge = append(result.SubmergedPumpDischarge, r.UnderwaterPumpDischargePressure)
-			result.MudPump1Discharge = append(result.MudPump1Discharge, r.MudPump1DischargePressure)
-			result.MudPump2Discharge = append(result.MudPump2Discharge, r.MudPump2DischargePressure)
-			result.GpsSpeed = append(result.GpsSpeed, r.Gps1Speed)
+			// --- 字段映射修正 ---
+			result.LadderDepth = append(result.LadderDepth, r.BridgeDepth)         // 绞刀深度 -> 桥架深度
+			result.CarriageTravel = append(result.CarriageTravel, r.TrolleyTravel) // 台车行程
+			result.TransverseSpeed = append(result.TransverseSpeed, r.TransverseSpeed)
+			// 升压泵排出压力 -> 水下泵排出压力 (华安龙无升压泵, 取功能相近字段)
+			result.BoosterPumpDischargePressure = append(result.BoosterPumpDischargePressure, r.UnderwaterPumpDischargePressure)
+			result.ProductionRate = append(result.ProductionRate, r.HourlyOutputRate) // 小时产量率
+			result.FlowVelocity = append(result.FlowVelocity, r.FlowVelocity)
+			result.Density = append(result.Density, r.Density)
 		}
 		return result, nil
 
 	} else if strings.Contains(shipName, "敏龙") {
-		// --- 性能优化：只查询需要的字段 ---
 		requiredColumns := []string{
 			"record_time", "underwater_pump_suction_vacuum", "flow_rate", "concentration",
-			"output_rate", "cutter_depth", "cutter_speed", "underwater_pump_speed",
-			"gps1_speed", "water_density", "density", "field_slurry_density",
-			"mud_pipe_diameter", "flow_velocity", "ear_draft", "left_ear_draft",
-			"right_ear_draft", "ear_to_bottom_distance",
+			"underwater_pump_speed", "cutter_depth", "trolley_travel", "transverse_speed",
+			"booster_pump_discharge_pressure", "hourly_output_rate", "flow_velocity", "density", // <-- 修正: 从 output_rate 改为 hourly_output_rate
+			// 以下为计算所需字段
+			"water_density", "field_slurry_density", "mud_pipe_diameter", "ear_draft",
+			"left_ear_draft", "right_ear_draft", "ear_to_bottom_distance",
 		}
-
 		var records []*model.DredgerDatum
 		err := s.db.Select(requiredColumns).Order("record_time asc").Where("ship_name = ?", shipName).Find(&records).Error
 		if err != nil {
@@ -1719,21 +1724,19 @@ func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
 		}
 
 		result := &PlaybackData{
-			Timestamps:             make([]int64, 0, len(records)),
-			ActualVacuum:           make([]float64, 0, len(records)),
-			EstimatedVacuum:        make([]float64, 0, len(records)),
-			FlowRate:               make([]float64, 0, len(records)),
-			Concentration:          make([]float64, 0, len(records)),
-			ProductionRate:         make([]float64, 0, len(records)),
-			LadderDepth:            make([]float64, 0, len(records)),
-			CutterRpm:              make([]float64, 0, len(records)),
-			SubmergedPumpRpm:       make([]float64, 0, len(records)),
-			MudPump1Rpm:            make([]float64, 0, len(records)),
-			MudPump2Rpm:            make([]float64, 0, len(records)),
-			SubmergedPumpDischarge: make([]float64, 0, len(records)),
-			MudPump1Discharge:      make([]float64, 0, len(records)),
-			MudPump2Discharge:      make([]float64, 0, len(records)),
-			GpsSpeed:               make([]float64, 0, len(records)),
+			Timestamps:                   make([]int64, 0, len(records)),
+			ActualVacuum:                 make([]float64, 0, len(records)),
+			EstimatedVacuum:              make([]float64, 0, len(records)),
+			FlowRate:                     make([]float64, 0, len(records)),
+			Concentration:                make([]float64, 0, len(records)),
+			SubmergedPumpRpm:             make([]float64, 0, len(records)),
+			LadderDepth:                  make([]float64, 0, len(records)),
+			CarriageTravel:               make([]float64, 0, len(records)),
+			TransverseSpeed:              make([]float64, 0, len(records)),
+			BoosterPumpDischargePressure: make([]float64, 0, len(records)),
+			ProductionRate:               make([]float64, 0, len(records)),
+			FlowVelocity:                 make([]float64, 0, len(records)),
+			Density:                      make([]float64, 0, len(records)),
 		}
 
 		for _, r := range records {
@@ -1743,21 +1746,19 @@ func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
 			}
 
 			result.Timestamps = append(result.Timestamps, r.RecordTime)
-			// --- 字段修正：使用 underwater_pump_suction_vacuum ---
 			result.ActualVacuum = append(result.ActualVacuum, r.UnderwaterPumpSuctionVacuum)
 			result.EstimatedVacuum = append(result.EstimatedVacuum, estimatedVacuum/100)
 			result.FlowRate = append(result.FlowRate, r.FlowRate)
 			result.Concentration = append(result.Concentration, r.Concentration)
-			result.ProductionRate = append(result.ProductionRate, r.OutputRate)
-			result.LadderDepth = append(result.LadderDepth, r.CutterDepth)
-			result.CutterRpm = append(result.CutterRpm, r.CutterSpeed)
 			result.SubmergedPumpRpm = append(result.SubmergedPumpRpm, r.UnderwaterPumpSpeed)
-			result.MudPump1Rpm = append(result.MudPump1Rpm, 0)
-			result.MudPump2Rpm = append(result.MudPump2Rpm, 0)
-			result.SubmergedPumpDischarge = append(result.SubmergedPumpDischarge, 0)
-			result.MudPump1Discharge = append(result.MudPump1Discharge, 0)
-			result.MudPump2Discharge = append(result.MudPump2Discharge, 0)
-			result.GpsSpeed = append(result.GpsSpeed, r.Gps1Speed)
+			// --- 字段映射修正 ---
+			result.LadderDepth = append(result.LadderDepth, r.CutterDepth)
+			result.CarriageTravel = append(result.CarriageTravel, r.TrolleyTravel)
+			result.TransverseSpeed = append(result.TransverseSpeed, r.TransverseSpeed)
+			result.BoosterPumpDischargePressure = append(result.BoosterPumpDischargePressure, r.BoosterPumpDischargePressure)
+			result.ProductionRate = append(result.ProductionRate, r.HourlyOutputRate) // <-- 修正: 使用 hourly_output_rate
+			result.FlowVelocity = append(result.FlowVelocity, r.FlowVelocity)
+			result.Density = append(result.Density, r.Density)
 		}
 		return result, nil
 

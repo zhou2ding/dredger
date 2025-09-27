@@ -207,5 +207,5 @@ func calcVacuumKPa(r *model.DredgerDatum, cfg ShipHydraulicsConfig) float64 {
 	PvacPa := Patm + staticPipe - staticLevel - friction - kinetic
 
 	// 输出单位：kPa
-	return PvacPa / 1000.0
+	return -PvacPa / 1000.0
 }
