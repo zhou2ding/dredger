@@ -313,3 +313,58 @@ func makeAbsUnder(p string, dataDir string) string {
 	// 统一接到 dataDir 下
 	return filepath.Clean(filepath.Join(dataDir, p))
 }
+
+// 统计“敏龙”(DredgerDatum) 某个班组的平均真空度（kPa）；忽略 NaN/Inf
+func averageVacuumDatum(records []*model.DredgerDatum, cfg ShipHydraulicsConfig) (avg float64, ok bool) {
+	var sum float64
+	var n int
+	for _, r := range records {
+		v := calcVacuumKPa(r, cfg)
+		if !math.IsNaN(v) && !math.IsInf(v, 0) {
+			sum += v
+			n++
+		}
+	}
+	if n == 0 {
+		return 0, false
+	}
+	return sum / float64(n), true
+}
+
+// 把华安龙记录按字段“映射”为 DredgerDatum 再复用 calcVacuumKPa（字段名按你库实际改）
+// 假设 Hl 记录具备：WaterDensity/Density/FieldSlurryDensity/FlowVelocity/FlowRate/MudPipeDiameter
+// 以及用于几何的：BridgeDepth(当作吸口深度)/EarDraft/LeftEarDraft/RightEarDraft/EarToBottomDistance
+func calcVacuumKPaFromHL(r *model.DredgerDataHl, cfg ShipHydraulicsConfig) float64 {
+	d := &model.DredgerDatum{
+		ShipName:           r.ShipName,
+		WaterDensity:       r.WaterDensity,
+		Density:            r.Density,
+		FieldSlurryDensity: r.FieldSlurryDensity,
+		FlowVelocity:       r.FlowVelocity,
+		FlowRate:           r.FlowRate,
+		//MudPipeDiameter:      r.MudPipeDiameter,
+		CutterDepth:   r.BridgeDepth, // Hl 下用 BridgeDepth 作为吸口深度
+		EarDraft:      r.EarDraft,
+		LeftEarDraft:  r.LeftEarDraft,
+		RightEarDraft: r.RightEarDraft,
+		//EarToBottomDistance:  r.EarToBottomDistance,
+	}
+	return calcVacuumKPa(d, cfg)
+}
+
+// 统计“华安龙”(DredgerDataHl) 某个班组的平均真空度（kPa）；忽略 NaN/Inf
+func averageVacuumHL(records []*model.DredgerDataHl, cfg ShipHydraulicsConfig) (avg float64, ok bool) {
+	var sum float64
+	var n int
+	for _, r := range records {
+		v := calcVacuumKPaFromHL(r, cfg)
+		if !math.IsNaN(v) && !math.IsInf(v, 0) {
+			sum += v
+			n++
+		}
+	}
+	if n == 0 {
+		return 0, false
+	}
+	return sum / float64(n), true
+}

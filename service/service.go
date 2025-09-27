@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"mime/multipart"
 	"os"
 	"os/exec"
@@ -448,6 +449,239 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 }
 
 func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*OptimalShift, error) {
+	optimalShift := OptimalShift{
+		MinEnergyShift: &ShiftWorkParams{},
+	}
+	var err error
+
+	// ---------- 华安龙 ----------
+	if strings.Contains(shipName, "华安龙") {
+		columns := []string{
+			"ship_name", "record_time", "hourly_output_rate",
+			// 统计参数
+			"transverse_speed", "trolley_travel", "bridge_depth", "underwater_pump_speed",
+			"concentration", "flow_rate", "underwater_pump_discharge_pressure",
+			// 横移速度回算
+			"cutter_x", "cutter_y",
+			// 真空度平均需要（HL -> Datum 映射）
+			"water_density", "density", "field_slurry_density", "flow_velocity",
+			"ear_draft", "left_ear_draft", "right_ear_draft",
+			// 能量统计（原逻辑）
+			"underwater_pump_power", "mud_pump_1_power", "mud_pump_2_power",
+		}
+		var records []*model.DredgerDataHl
+		err = s.db.Select(columns).Where("ship_name = ?", shipName).
+			Where("record_time BETWEEN ? AND ?", startTime, endTime).
+			Find(&records).Error
+		if err != nil {
+			logger.Logger.Errorf("[华安龙]查询班组数据失败: %v", err)
+			return nil, err
+		}
+
+		groups := make(map[int][]*model.DredgerDataHl)
+		for _, record := range records {
+			hour := time.UnixMilli(record.RecordTime).Hour()
+			switch {
+			case hour >= 0 && hour < 6:
+				groups[1] = append(groups[1], record)
+			case hour >= 6 && hour < 12:
+				groups[2] = append(groups[2], record)
+			case hour >= 12 && hour < 18:
+				groups[3] = append(groups[3], record)
+			default:
+				groups[4] = append(groups[4], record)
+			}
+		}
+
+		optimalShift.MinEnergyShift.Parameters.BoosterPumpDischargePressure.Max = -1
+		cfg := getCfg(shipName)
+
+		for shift := 1; shift <= 4; shift++ {
+			shiftRecords, exists := groups[shift]
+			if !exists || len(shiftRecords) == 0 {
+				continue
+			}
+
+			var minTime, maxTime time.Time
+			maxTime, minTime = durationMinutesHl(minTime, maxTime, shiftRecords)
+			duration := maxTime.Sub(minTime).Minutes()
+			if duration <= 0 {
+				continue
+			}
+
+			// —— 产量统计 ——
+			var totalOutputRate float64
+			for _, r := range shiftRecords {
+				totalOutputRate += r.HourlyOutputRate
+			}
+			avgOutputRate := totalOutputRate / float64(len(shiftRecords))
+			totalProduction := avgOutputRate * (duration / 60)
+
+			// —— 真空度（按 Word 公式）平均值 ——（忽略 NaN/Inf）
+			avgVacHl, okVacHl := averageVacuumHL(shiftRecords, cfg)
+
+			// —— 能量统计（原有逻辑） ——
+			var totalPower float64
+			for _, r := range shiftRecords {
+				totalPower += r.UnderwaterPumpPower + r.MudPump1Power + r.MudPump2Power
+			}
+			avgPower := totalPower / float64(len(shiftRecords))
+			totalEnergy := avgPower * (duration / 60)
+
+			// —— 更新“最大产量班组” ——（并把平均真空度写入返回）
+			if totalProduction > optimalShift.TotalProduction {
+				optimalShift.TotalProduction = round(totalProduction)
+				params := calParamsHl(shiftRecords) // 先用原统计
+				if okVacHl {                        // 覆盖写入平均真空度，避免 0/NaN
+					params.VacuumDegree.Average = round(avgVacHl)
+				}
+				// 防 NaN：MaxProductionParam 不允许 NaN 进入 JSON
+				if math.IsNaN(params.VacuumDegree.MaxProductionParam) || math.IsInf(params.VacuumDegree.MaxProductionParam, 0) {
+					params.VacuumDegree.MaxProductionParam = 0
+				}
+				optimalShift.MaxProductionShift = &ShiftWorkParams{
+					ShiftName:  shiftName(shift),
+					Parameters: params,
+				}
+			}
+
+			// —— 更新“最小能耗班组” ——（并把平均真空度写入返回）
+			if optimalShift.MinEnergyShift.Parameters.BoosterPumpDischargePressure.Max == -1 || totalEnergy < optimalShift.TotalEnergy {
+				optimalShift.TotalEnergy = round(totalEnergy)
+				params := calParamsHl(shiftRecords)
+				if okVacHl {
+					params.VacuumDegree.Average = round(avgVacHl)
+				}
+				if math.IsNaN(params.VacuumDegree.MaxProductionParam) || math.IsInf(params.VacuumDegree.MaxProductionParam, 0) {
+					params.VacuumDegree.MaxProductionParam = 0
+				}
+				optimalShift.MinEnergyShift = &ShiftWorkParams{
+					ShiftName:  shiftName(shift),
+					Parameters: params,
+				}
+			}
+		}
+
+		// ---------- 敏龙 ----------
+	} else if strings.Contains(shipName, "敏龙") {
+		columns := []string{
+			"ship_name", "record_time", "output_rate",
+			// 统计参数
+			"transverse_speed", "trolley_travel", "cutter_depth", "underwater_pump_speed",
+			"concentration", "flow_rate", "booster_pump_discharge_pressure",
+			// 能量统计 P1/P2/P3/Q
+			"underwater_pump_suction_vacuum", "intermediate_pressure",
+			// 真空度公式需要
+			"water_density", "density", "field_slurry_density", "flow_velocity", "mud_pipe_diameter",
+			"ear_draft", "left_ear_draft", "right_ear_draft", "ear_to_bottom_distance",
+			// 横移速度回算
+			"cutter_x", "cutter_y",
+		}
+		var records []*model.DredgerDatum
+		err = s.db.Select(columns).Where("ship_name = ?", shipName).
+			Where("record_time BETWEEN ? AND ?", startTime, endTime).
+			Find(&records).Error
+		if err != nil {
+			logger.Logger.Errorf("[敏龙]查询班组数据失败: %v", err)
+			return nil, err
+		}
+
+		groups := make(map[int][]*model.DredgerDatum)
+		for _, record := range records {
+			hour := time.UnixMilli(record.RecordTime).Hour()
+			switch {
+			case hour >= 0 && hour < 6:
+				groups[1] = append(groups[1], record)
+			case hour >= 6 && hour < 12:
+				groups[2] = append(groups[2], record)
+			case hour >= 12 && hour < 18:
+				groups[3] = append(groups[3], record)
+			default:
+				groups[4] = append(groups[4], record)
+			}
+		}
+
+		optimalShift.MinEnergyShift.Parameters.BoosterPumpDischargePressure.Max = -1
+		cfg := getCfg(shipName)
+
+		for shift := 1; shift <= 4; shift++ {
+			shiftRecords, exists := groups[shift]
+			if !exists || len(shiftRecords) == 0 {
+				continue
+			}
+
+			var minTime, maxTime time.Time
+			maxTime, minTime = durationMinutes(minTime, maxTime, shiftRecords)
+			duration := maxTime.Sub(minTime).Minutes()
+			if duration <= 0 {
+				continue
+			}
+
+			// —— 产量统计 ——
+			var totalOutputRate float64
+			for _, r := range shiftRecords {
+				totalOutputRate += r.OutputRate
+			}
+			avgOutputRate := totalOutputRate / float64(len(shiftRecords))
+			totalProduction := avgOutputRate * (duration / 60)
+
+			// —— 真空度（按 Word 公式）平均值 ——（忽略 NaN/Inf）
+			avgVac, okVac := averageVacuumDatum(shiftRecords, cfg)
+
+			// —— 能量统计（原有逻辑） ——
+			var totalPower float64
+			for _, r := range shiftRecords {
+				P1 := r.UnderwaterPumpSuctionVacuum
+				P2 := r.IntermediatePressure
+				P3 := r.BoosterPumpDischargePressure
+				Q := r.FlowRate
+				pw1 := 0.8 * Q * (P2 - P1)
+				pw2 := 0.8 * Q * (P3 - P2)
+				totalPower += pw1 + pw2
+			}
+			avgPower := totalPower / float64(len(shiftRecords))
+			totalEnergy := avgPower * (duration / 60)
+
+			// —— 更新“最大产量班组” ——（并把平均真空度写入返回）
+			if totalProduction > optimalShift.TotalProduction {
+				optimalShift.TotalProduction = round(totalProduction)
+				params := calParams(shiftRecords) // 原统计
+				if okVac {
+					params.VacuumDegree.Average = round(avgVac)
+				}
+				if math.IsNaN(params.VacuumDegree.MaxProductionParam) || math.IsInf(params.VacuumDegree.MaxProductionParam, 0) {
+					params.VacuumDegree.MaxProductionParam = 0
+				}
+				optimalShift.MaxProductionShift = &ShiftWorkParams{
+					ShiftName:  shiftName(shift),
+					Parameters: params,
+				}
+			}
+
+			// —— 更新“最小能耗班组” ——（并把平均真空度写入返回）
+			if optimalShift.MinEnergyShift.Parameters.BoosterPumpDischargePressure.Max == -1 || totalEnergy < optimalShift.TotalEnergy {
+				optimalShift.TotalEnergy = round(totalEnergy)
+				params := calParams(shiftRecords)
+				if okVac {
+					params.VacuumDegree.Average = round(avgVac)
+				}
+				if math.IsNaN(params.VacuumDegree.MaxProductionParam) || math.IsInf(params.VacuumDegree.MaxProductionParam, 0) {
+					params.VacuumDegree.MaxProductionParam = 0
+				}
+				optimalShift.MinEnergyShift = &ShiftWorkParams{
+					ShiftName:  shiftName(shift),
+					Parameters: params,
+				}
+			}
+		}
+	} else {
+		return nil, fmt.Errorf("船名[%s]暂不支持此统计", shipName)
+	}
+
+	return &optimalShift, nil
+}
+
+func (s *Service) GetOptimalShiftOld(shipName string, startTime, endTime int64) (*OptimalShift, error) {
 	optimalShift := OptimalShift{
 		MinEnergyShift: &ShiftWorkParams{},
 	}
@@ -950,8 +1184,21 @@ func (s *Service) GetAllShiftParameters(shipName string, startTime, endTime int6
 	var err error
 
 	if strings.Contains(shipName, "华安龙") {
+		columns := []string{
+			"ship_name", "record_time", "hourly_output_rate",
+			// 统计参数
+			"transverse_speed", "trolley_travel", "bridge_depth", "underwater_pump_speed",
+			"concentration", "flow_rate", "underwater_pump_discharge_pressure",
+			// 横移速度回算
+			"cutter_x", "cutter_y",
+			// 真空度平均需要（HL -> Datum 映射）
+			"water_density", "density", "field_slurry_density", "flow_velocity",
+			"ear_draft", "left_ear_draft", "right_ear_draft",
+			// 能量统计（原逻辑）
+			"underwater_pump_power", "mud_pump_1_power", "mud_pump_2_power",
+		}
 		var records []*model.DredgerDataHl
-		err = s.db.Where("ship_name = ?", shipName).
+		err = s.db.Select(columns).Where("ship_name = ?", shipName).
 			Where("record_time BETWEEN ? AND ?", startTime, endTime).
 			Find(&records).Error
 		if err != nil {
@@ -990,8 +1237,21 @@ func (s *Service) GetAllShiftParameters(shipName string, startTime, endTime int6
 		}
 
 	} else if strings.Contains(shipName, "敏龙") {
+		columns := []string{
+			"ship_name", "record_time", "output_rate",
+			// 统计参数
+			"transverse_speed", "trolley_travel", "cutter_depth", "underwater_pump_speed",
+			"concentration", "flow_rate", "booster_pump_discharge_pressure",
+			// 能量统计 P1/P2/P3/Q
+			"underwater_pump_suction_vacuum", "intermediate_pressure",
+			// 真空度公式需要
+			"water_density", "density", "field_slurry_density", "flow_velocity", "mud_pipe_diameter",
+			"ear_draft", "left_ear_draft", "right_ear_draft", "ear_to_bottom_distance",
+			// 横移速度回算
+			"cutter_x", "cutter_y",
+		}
 		var records []*model.DredgerDatum
-		err = s.db.Where("ship_name = ?", shipName).
+		err = s.db.Select(columns).Where("ship_name = ?", shipName).
 			Where("record_time BETWEEN ? AND ?", startTime, endTime).
 			Find(&records).Error
 		if err != nil {

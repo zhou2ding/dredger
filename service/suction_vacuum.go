@@ -14,30 +14,57 @@ type ShipHydraulicsConfig struct {
 	FrictionFactorClearWater float64 // 清水沿程阻力系数 f_cw（或直接填泥浆用 f）
 	UseDensityRatio          bool    // 是否用 (rho_m/rho_w) 放大 f_cw 得到泥浆 f
 	PumpAboveBottomM         float64 // 泵中心线高于船底的高度 m（来自布置）
+	DefaultHsPumpM           float64 // 新增：当几何量缺失时的保守回退（单位 m）
 	FlowRateUnit             string  // "m3/h" 或 "m3/s"
 	DensityUnit              string  // "kg/m3" / "t/m3" / "g/cm3"
 	VacuumOutUnit            string  // "kPa"（默认）
 }
 
-// TODO：把这些数值替换为你 Word“图片表格”的实际值
 var shipCfg = map[string]ShipHydraulicsConfig{
 	"敏龙": {
-		PatmPa:                   101325,
-		G:                        9.80665,
-		PipeInnerDiameterM:       0,      // 若数据表 MudPipeDiameter 有值，可留 0
-		SuctionPipeLengthM:       0,      // ← Word 表格
-		LocalEqLengthM:           0,      // ← Word 表格
-		FrictionFactorClearWater: 0.02,   // 例：按规范/表取值，或置 0 后用泥浆 f 直填
-		UseDensityRatio:          true,   // 按 Word 思路：清水 f × 密度比
-		PumpAboveBottomM:         0,      // ← 布置尺寸（图片表）
-		FlowRateUnit:             "m3/h", // 你库里的 FlowRate 常见是 m3/h
-		DensityUnit:              "",     // 若库里是 kg/m3 可留空；若是 g/cm3/t/m3 请填
-		VacuumOutUnit:            "kPa",
-	},
-	"华安龙": {
 		PatmPa: 101325,
 		G:      9.80665,
-		// 其余同上，按该船实测/台账填写
+		// D：Excel “泥管直径” = 0.70m，本配置置0表示优先用记录里的值
+		PipeInnerDiameterM: 0.0,
+
+		// L：用表8.3.3-2（2.4中值）× Excel 几何直管均值(≈32.23m) → 77.36m
+		SuctionPipeLengthM: 77.36,
+
+		// 采用折算比方案时，局部件已包含在折算里，这里设 0
+		LocalEqLengthM: 0.0,
+
+		// 表2.1（D=0.70m）清水沿程阻力系数
+		FrictionFactorClearWater: 0.0130,
+
+		// 按Word：泥浆 f = 清水 f × (ρm/ρw)
+		UseDensityRatio: true,
+
+		// 布置图尺寸（暂以 2.5m 先跑通；拿到真值就替换）
+		PumpAboveBottomM: 2.5,
+
+		// 兜底：若几何缺失时使用（可以与上面相同）
+		DefaultHsPumpM: 2.5,
+
+		// 与Excel一致
+		FlowRateUnit:  "m3/h",
+		DensityUnit:   "", // 让代码按 0~5 识别成相对密度×1000
+		VacuumOutUnit: "kPa",
+	},
+
+	// 先临时复用敏龙的值；拿到“华安龙”的 D、角度后再另行计算 L 与 λw
+	"华安龙": {
+		PatmPa:                   101325,
+		G:                        9.80665,
+		PipeInnerDiameterM:       0.0,
+		SuctionPipeLengthM:       77.36,
+		LocalEqLengthM:           0.0,
+		FrictionFactorClearWater: 0.0130,
+		UseDensityRatio:          true,
+		PumpAboveBottomM:         2.5,
+		DefaultHsPumpM:           2.5,
+		FlowRateUnit:             "m3/h",
+		DensityUnit:              "",
+		VacuumOutUnit:            "kPa",
 	},
 }
 
