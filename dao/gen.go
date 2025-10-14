@@ -20,6 +20,7 @@ var (
 	DataDate           *dataDate
 	DredgerDataHl      *dredgerDataHl
 	DredgerDatum       *dredgerDatum
+	SoilRegion         *soilRegion
 	TheoryOptimalParam *theoryOptimalParam
 )
 
@@ -28,6 +29,7 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	DataDate = &Q.DataDate
 	DredgerDataHl = &Q.DredgerDataHl
 	DredgerDatum = &Q.DredgerDatum
+	SoilRegion = &Q.SoilRegion
 	TheoryOptimalParam = &Q.TheoryOptimalParam
 }
 
@@ -37,6 +39,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		DataDate:           newDataDate(db, opts...),
 		DredgerDataHl:      newDredgerDataHl(db, opts...),
 		DredgerDatum:       newDredgerDatum(db, opts...),
+		SoilRegion:         newSoilRegion(db, opts...),
 		TheoryOptimalParam: newTheoryOptimalParam(db, opts...),
 	}
 }
@@ -47,6 +50,7 @@ type Query struct {
 	DataDate           dataDate
 	DredgerDataHl      dredgerDataHl
 	DredgerDatum       dredgerDatum
+	SoilRegion         soilRegion
 	TheoryOptimalParam theoryOptimalParam
 }
 
@@ -58,6 +62,7 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		DataDate:           q.DataDate.clone(db),
 		DredgerDataHl:      q.DredgerDataHl.clone(db),
 		DredgerDatum:       q.DredgerDatum.clone(db),
+		SoilRegion:         q.SoilRegion.clone(db),
 		TheoryOptimalParam: q.TheoryOptimalParam.clone(db),
 	}
 }
@@ -76,6 +81,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		DataDate:           q.DataDate.replaceDB(db),
 		DredgerDataHl:      q.DredgerDataHl.replaceDB(db),
 		DredgerDatum:       q.DredgerDatum.replaceDB(db),
+		SoilRegion:         q.SoilRegion.replaceDB(db),
 		TheoryOptimalParam: q.TheoryOptimalParam.replaceDB(db),
 	}
 }
@@ -84,6 +90,7 @@ type queryCtx struct {
 	DataDate           IDataDateDo
 	DredgerDataHl      IDredgerDataHlDo
 	DredgerDatum       IDredgerDatumDo
+	SoilRegion         ISoilRegionDo
 	TheoryOptimalParam ITheoryOptimalParamDo
 }
 
@@ -92,6 +99,7 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 		DataDate:           q.DataDate.WithContext(ctx),
 		DredgerDataHl:      q.DredgerDataHl.WithContext(ctx),
 		DredgerDatum:       q.DredgerDatum.WithContext(ctx),
+		SoilRegion:         q.SoilRegion.WithContext(ctx),
 		TheoryOptimalParam: q.TheoryOptimalParam.WithContext(ctx),
 	}
 }

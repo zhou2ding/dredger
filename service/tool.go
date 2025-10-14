@@ -368,3 +368,16 @@ func averageVacuumHL(records []*model.DredgerDataHl, cfg ShipHydraulicsConfig) (
 	}
 	return sum / float64(n), true
 }
+
+func findSoilType(x, y, z float64, regions []model.SoilRegion) string {
+	for _, region := range regions {
+		// cutter_y (传入的 y) 对应 soil_regions 的 x 坐标
+		// cutter_x (传入的 x) 对应 soil_regions 的 y 坐标
+		if y >= region.XMin && y < region.XMax &&
+			x >= region.YMin && x < region.YMax &&
+			z >= region.ZMin && z < region.ZMax {
+			return region.SoilType
+		}
+	}
+	return "未知土质" // 如果没有找到匹配的区域
+}

@@ -16,7 +16,7 @@ func main() {
 		Mode:    gen.WithoutContext | gen.WithDefaultQuery | gen.WithQueryInterface, // generate mode
 	})
 
-	gormdb, _ := gorm.Open(mysql.Open("root:5023152@(36.133.97.26:26033)/dredger?charset=utf8mb4&parseTime=True&loc=Local"))
+	gormdb, _ := gorm.Open(mysql.Open("root:5023152@(127.0.0.1:3306)/dredger?charset=utf8mb4&parseTime=True&loc=Local"))
 	g.UseDB(gormdb)
 
 	g.ApplyBasic(g.GenerateAllTable()...)

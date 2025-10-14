@@ -18,6 +18,7 @@ type ShiftStat struct {
 	WorkDuration    float64   `json:"workDuration"`
 	TotalProduction float64   `json:"totalProduction"`
 	TotalEnergy     float64   `json:"totalEnergy"`
+	SoilTypes       []string  `json:"soilTypes"`
 }
 
 type ParameterStat struct {
@@ -27,6 +28,11 @@ type ParameterStat struct {
 }
 
 type (
+	OptimalShiftResponse struct {
+		// Key 是土质类型 (e.g., "粘土", "砂土", "未知土质")
+		// Value 是该土质下的最优参数分析结果
+		OptimalShiftsBySoil map[string]*OptimalShift `json:"optimalShiftsBySoil"`
+	}
 	OptimalShift struct {
 		MaxProductionShift *ShiftWorkParams `json:"maxProductionShift"`
 		MinEnergyShift     *ShiftWorkParams `json:"minEnergyShift"`
