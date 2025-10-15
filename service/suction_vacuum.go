@@ -68,7 +68,7 @@ var shipCfg = map[string]ShipHydraulicsConfig{
 	},
 }
 
-func getCfg(ship string) ShipHydraulicsConfig {
+func GetCfg(ship string) ShipHydraulicsConfig {
 	if c, ok := shipCfg[ship]; ok {
 		return c
 	}
@@ -185,7 +185,7 @@ func calcVacuumKPa(r *model.DredgerDatum, cfg ShipHydraulicsConfig) float64 {
 	}
 	rhoM = densityToKgM3(rhoM, cfg.DensityUnit)
 	if rhoM <= 0 {
-		return math.NaN()
+		return 0
 	}
 
 	D := pipeD(r, cfg)
@@ -195,7 +195,7 @@ func calcVacuumKPa(r *model.DredgerDatum, cfg ShipHydraulicsConfig) float64 {
 	Vs := flowVelocityVs(r, cfg, D)
 
 	if D <= 0 || L <= 0 || math.IsNaN(hsPipe) || math.IsNaN(hsPump) || math.IsNaN(Vs) {
-		return math.NaN()
+		return 0
 	}
 	fMud := frictionFactorMud(cfg, rhoW, rhoM)
 

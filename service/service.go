@@ -723,7 +723,7 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 				}
 			}
 
-			cfg := getCfg(shipName)
+			cfg := GetCfg(shipName)
 
 			for shift := 1; shift <= 4; shift++ {
 				shiftRecords, exists := groups[shift]
@@ -843,7 +843,7 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 				}
 			}
 
-			cfg := getCfg(shipName)
+			cfg := GetCfg(shipName)
 
 			for shift := 1; shift <= 4; shift++ {
 				shiftRecords, exists := groups[shift]
@@ -965,7 +965,7 @@ func (s *Service) GetOptimalShiftOld(shipName string, startTime, endTime int64) 
 		}
 
 		optimalShift.MinEnergyShift.Parameters.BoosterPumpDischargePressure.Max = -1
-		cfg := getCfg(shipName)
+		cfg := GetCfg(shipName)
 
 		for shift := 1; shift <= 4; shift++ {
 			shiftRecords, exists := groups[shift]
@@ -1073,7 +1073,7 @@ func (s *Service) GetOptimalShiftOld(shipName string, startTime, endTime int64) 
 		}
 
 		optimalShift.MinEnergyShift.Parameters.BoosterPumpDischargePressure.Max = -1
-		cfg := getCfg(shipName)
+		cfg := GetCfg(shipName)
 
 		for shift := 1; shift <= 4; shift++ {
 			shiftRecords, exists := groups[shift]
@@ -2108,7 +2108,7 @@ func (s *Service) OpenLocation(filePath string) error {
 }
 
 func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
-	cfg := getCfg(shipName)
+	cfg := GetCfg(shipName)
 	var estimatedVacuum float64
 
 	if strings.Contains(shipName, "华安龙") {

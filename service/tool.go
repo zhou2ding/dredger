@@ -62,7 +62,7 @@ func calParams(records []*model.DredgerDatum) ParameterStats {
 		warning                       string
 	)
 
-	cfg := getCfg(records[0].ShipName)
+	cfg := GetCfg(records[0].ShipName)
 
 	maxOutputRate := -1.0
 	maxIndex := 0
@@ -331,10 +331,10 @@ func averageVacuumDatum(records []*model.DredgerDatum, cfg ShipHydraulicsConfig)
 	return sum / float64(n), true
 }
 
-// 把华安龙记录按字段“映射”为 DredgerDatum 再复用 calcVacuumKPa（字段名按你库实际改）
+// CalcVacuumKPaFromHL 把华安龙记录按字段“映射”为 DredgerDatum 再复用 calcVacuumKPa（字段名按你库实际改）
 // 假设 Hl 记录具备：WaterDensity/Density/FieldSlurryDensity/FlowVelocity/FlowRate/MudPipeDiameter
 // 以及用于几何的：BridgeDepth(当作吸口深度)/EarDraft/LeftEarDraft/RightEarDraft/EarToBottomDistance
-func calcVacuumKPaFromHL(r *model.DredgerDataHl, cfg ShipHydraulicsConfig) float64 {
+func CalcVacuumKPaFromHL(r *model.DredgerDataHl, cfg ShipHydraulicsConfig) float64 {
 	d := &model.DredgerDatum{
 		ShipName:           r.ShipName,
 		WaterDensity:       r.WaterDensity,
@@ -357,7 +357,7 @@ func averageVacuumHL(records []*model.DredgerDataHl, cfg ShipHydraulicsConfig) (
 	var sum float64
 	var n int
 	for _, r := range records {
-		v := calcVacuumKPaFromHL(r, cfg)
+		v := CalcVacuumKPaFromHL(r, cfg)
 		if !math.IsNaN(v) && !math.IsInf(v, 0) {
 			sum += v
 			n++
