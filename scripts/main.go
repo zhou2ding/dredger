@@ -85,12 +85,20 @@ func main() {
 			continue
 		}
 
-		imported, err := importData(f, shipName, startDate, endData)
+		var imported int
+		if strings.Contains(shipName, "敏龙") {
+			imported, err = importData(f, shipName, startDate, endData)
+		} else if strings.Contains(shipName, "华安龙") {
+			imported, err = importDataHualong(f, shipName, startDate, endData)
+		} else {
+			fmt.Printf("文件 %s 船名无法识别（不是敏龙也不是华安龙），跳过\n", filePath)
+			continue
+		}
 		f.Close()
 		if err != nil {
 			fmt.Printf("导入文件 %s 失败: %v\n", filePath, err)
 		} else {
-			fmt.Printf("成功导入文件 %s，%d 条记录，耗时 %v\n", filePath, imported, time.Since(now))
+			fmt.Printf("成功导入文件 %s，%d 条记录，耗时 %.2fs\n", filePath, imported, time.Since(now).Seconds())
 			totalImported += imported
 		}
 	}
@@ -215,6 +223,120 @@ func importData(file io.Reader, shipName string, startDate, endDate int64) (int,
 	}
 
 	if err = tx.Commit().Error; err != nil {
+		return imported, fmt.Errorf("事务提交失败: %v\n", err)
+	}
+
+	return imported, nil
+}
+
+func importDataHualong(file io.Reader, shipName string, startDate, endDate int64) (int, error) {
+	xlsx, err := excelize.OpenReader(file)
+	if err != nil {
+		fmt.Printf("open excel file error: %v\n", err)
+		return 0, err
+	}
+
+	rows, err := xlsx.GetRows(xlsx.GetSheetName(0))
+	if err != nil {
+		return 0, err
+	}
+
+	if len(rows) < 2 {
+		return 0, errors.New("文件内容为空")
+	}
+
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 插入时间标记
+	dataDates := []model.DataDate{
+		{ShipName: shipName, Date: startDate},
+		{ShipName: shipName, Date: endDate},
+	}
+	if err = tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(&dataDates).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	var (
+		imported   int
+		fieldNames []string
+		batch      []model.DredgerDataHl
+	)
+
+	refType := reflect.TypeOf(model.DredgerDataHl{})
+	for i := 2; i < refType.NumField(); i++ {
+		fieldNames = append(fieldNames, refType.Field(i).Name)
+	}
+
+	for rowNum, row := range rows[1:] {
+		if len(row) < len(fieldNames) {
+			fmt.Printf("第 %d 行列数不足（%d/%d），跳过\n", rowNum+2, len(row), len(fieldNames))
+			continue
+		}
+		data := model.DredgerDataHl{ShipName: shipName}
+		elem := reflect.ValueOf(&data).Elem()
+
+		valid := true
+		for i, fieldName := range fieldNames {
+			cellVal := row[i+1]
+			field := elem.FieldByName(fieldName)
+			if !field.CanSet() {
+				valid = false
+				break
+			}
+			if i == 0 {
+				t, err := time.ParseInLocation(time.DateTime, cellVal, time.Local)
+				if err != nil {
+					fmt.Printf("第 %d 行字段 %s 转换失败: %v\n", rowNum+2, fieldName, err)
+					valid = false
+				} else {
+					field.SetInt(t.UnixMilli())
+				}
+				continue
+			}
+
+			switch field.Kind() {
+			case reflect.Float64:
+				if num, err := strconv.ParseFloat(cellVal, 64); err == nil {
+					field.SetFloat(num)
+				}
+			case reflect.Int64:
+				if num, err := strconv.ParseInt(cellVal, 10, 64); err == nil {
+					field.SetInt(num)
+				}
+			case reflect.String:
+				field.SetString(cellVal)
+			}
+		}
+
+		if valid {
+			batch = append(batch, data)
+		}
+
+		if len(batch) >= batchSize {
+			if err := tx.Create(&batch).Error; err != nil {
+				tx.Rollback()
+				return imported, fmt.Errorf("插入第 %d 批次时出错: %v\n", imported/batchSize+1, err)
+			}
+			imported += len(batch)
+			batch = nil
+		}
+	}
+
+	if len(batch) > 0 {
+		if err := tx.Create(&batch).Error; err != nil {
+			tx.Rollback()
+			return imported, fmt.Errorf("插入最后批次时出错: %v\n", err)
+		}
+		imported += len(batch)
+	}
+
+	if err := tx.Commit().Error; err != nil {
 		return imported, fmt.Errorf("事务提交失败: %v\n", err)
 	}
 
