@@ -336,18 +336,18 @@ func averageVacuumDatum(records []*model.DredgerDatum, cfg ShipHydraulicsConfig)
 // 以及用于几何的：BridgeDepth(当作吸口深度)/EarDraft/LeftEarDraft/RightEarDraft/EarToBottomDistance
 func CalcVacuumKPaFromHL(r *model.DredgerDataHl, cfg ShipHydraulicsConfig) float64 {
 	d := &model.DredgerDatum{
-		ShipName:           r.ShipName,
-		WaterDensity:       r.WaterDensity,
-		Density:            r.Density,
-		FieldSlurryDensity: r.FieldSlurryDensity,
-		FlowVelocity:       r.FlowVelocity,
-		FlowRate:           r.FlowRate,
-		//MudPipeDiameter:      r.MudPipeDiameter,
-		CutterDepth:   r.BridgeDepth, // Hl 下用 BridgeDepth 作为吸口深度
-		EarDraft:      r.EarDraft,
-		LeftEarDraft:  r.LeftEarDraft,
-		RightEarDraft: r.RightEarDraft,
-		//EarToBottomDistance:  r.EarToBottomDistance,
+		ShipName:            r.ShipName,
+		WaterDensity:        r.WaterDensity,
+		Density:             r.Density,
+		FieldSlurryDensity:  r.FieldSlurryDensity,
+		FlowVelocity:        r.FlowVelocity,
+		FlowRate:            r.FlowRate,
+		CutterDepth:         r.BridgeDepth, // Hl 下用 BridgeDepth 作为吸口深度
+		EarDraft:            r.EarDraft,
+		LeftEarDraft:        r.LeftEarDraft,
+		RightEarDraft:       r.RightEarDraft,
+		MudPipeDiameter:     0.7,  // 泥管直径使用敏龙的数据
+		EarToBottomDistance: 12.9, // 耳轴到船底距离由敏龙的耳轴吃水➗耳轴到船底的距离计算出来的比例，✖️华龙的耳轴吃水
 	}
 	return calcVacuumKPa(d, cfg)
 }

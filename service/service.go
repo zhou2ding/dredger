@@ -1537,6 +1537,9 @@ func (s *Service) GetColumnDataList(columnName, shipName string, startTime, endT
 		return nil, fmt.Errorf("船名[%s]暂不支持此统计", shipName)
 	}
 
+	if columnName == "hourly_output_rate" {
+		columnName = "current_shift_output_rate"
+	}
 	var records []map[string]interface{}
 	err := s.db.Table(tableName).
 		Select(columnName, "record_time").
@@ -2115,7 +2118,7 @@ func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
 		requiredColumns := []string{
 			"record_time", "underwater_pump_suction_vacuum", "flow_rate", "concentration",
 			"underwater_pump_speed", "bridge_depth", "trolley_travel", "transverse_speed",
-			"underwater_pump_discharge_pressure", "hourly_output_rate", "flow_velocity", "density",
+			"underwater_pump_discharge_pressure", "hourly_output_rate", "current_shift_output_rate", "flow_velocity", "density",
 			// 以下为计算所需字段
 			"water_density", "field_slurry_density", "ear_draft", "left_ear_draft", "right_ear_draft",
 		}
@@ -2145,15 +2148,17 @@ func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
 
 		for _, r := range records {
 			datumForCalc := &model.DredgerDatum{
-				WaterDensity:       r.WaterDensity,
-				Density:            r.Density,
-				FieldSlurryDensity: r.FieldSlurryDensity,
-				FlowVelocity:       r.FlowVelocity,
-				FlowRate:           r.FlowRate,
-				CutterDepth:        r.BridgeDepth,
-				EarDraft:           r.EarDraft,
-				LeftEarDraft:       r.LeftEarDraft,
-				RightEarDraft:      r.RightEarDraft,
+				WaterDensity:        r.WaterDensity,
+				Density:             r.Density,
+				FieldSlurryDensity:  r.FieldSlurryDensity,
+				MudPipeDiameter:     0.7,  // 泥管直径使用敏龙的数据
+				EarToBottomDistance: 12.9, // 耳轴到船底距离由敏龙的耳轴吃水➗耳轴到船底的距离计算出来的比例，✖️华龙的耳轴吃水
+				FlowVelocity:        r.FlowVelocity,
+				FlowRate:            r.FlowRate,
+				CutterDepth:         r.BridgeDepth,
+				EarDraft:            r.EarDraft,
+				LeftEarDraft:        r.LeftEarDraft,
+				RightEarDraft:       r.RightEarDraft,
 			}
 			estimatedVacuum = calcVacuumKPa(datumForCalc, cfg)
 			if math.IsNaN(estimatedVacuum) || math.IsInf(estimatedVacuum, 0) {
@@ -2172,7 +2177,7 @@ func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
 			result.TransverseSpeed = append(result.TransverseSpeed, r.TransverseSpeed)
 			// 升压泵排出压力 -> 水下泵排出压力 (华安龙无升压泵, 取功能相近字段)
 			result.BoosterPumpDischargePressure = append(result.BoosterPumpDischargePressure, r.UnderwaterPumpDischargePressure)
-			result.ProductionRate = append(result.ProductionRate, r.HourlyOutputRate) // 小时产量率
+			result.ProductionRate = append(result.ProductionRate, r.CurrentShiftOutputRate) // 小时产量率
 			result.FlowVelocity = append(result.FlowVelocity, r.FlowVelocity)
 			result.Density = append(result.Density, r.Density)
 		}
@@ -2182,7 +2187,7 @@ func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
 		requiredColumns := []string{
 			"record_time", "underwater_pump_suction_vacuum", "flow_rate", "concentration",
 			"underwater_pump_speed", "cutter_depth", "trolley_travel", "transverse_speed",
-			"booster_pump_discharge_pressure", "hourly_output_rate", "flow_velocity", "density", // <-- 修正: 从 output_rate 改为 hourly_output_rate
+			"booster_pump_discharge_pressure", "hourly_output_rate", "current_shift_output_rate", "flow_velocity", "density", // <-- 修正: 从 output_rate 改为 hourly_output_rate
 			// 以下为计算所需字段
 			"water_density", "field_slurry_density", "mud_pipe_diameter", "ear_draft",
 			"left_ear_draft", "right_ear_draft", "ear_to_bottom_distance",
@@ -2227,7 +2232,7 @@ func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
 			result.CarriageTravel = append(result.CarriageTravel, r.TrolleyTravel)
 			result.TransverseSpeed = append(result.TransverseSpeed, r.TransverseSpeed)
 			result.BoosterPumpDischargePressure = append(result.BoosterPumpDischargePressure, r.BoosterPumpDischargePressure)
-			result.ProductionRate = append(result.ProductionRate, r.HourlyOutputRate) // <-- 修正: 使用 hourly_output_rate
+			result.ProductionRate = append(result.ProductionRate, r.CurrentShiftOutputRate) // <-- 修正: 使用 hourly_output_rate
 			result.FlowVelocity = append(result.FlowVelocity, r.FlowVelocity)
 			result.Density = append(result.Density, r.Density)
 		}

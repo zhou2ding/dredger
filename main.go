@@ -438,7 +438,7 @@ func handleSensorTCP(ws *websocket.Conn, addr string) {
 		// 5. 准备发送给前端的数据
 		// 直接通过 dredgerData 构建 sensorData，确保字段一致
 		sensorData := SensorData{
-			PredictedVacuum:                     predictedVacuum,
+			PredictedVacuum:                     predictedVacuum / 100,
 			LeftEarDraft:                        dredgerData.LeftEarDraft,
 			UnderwaterPumpSuctionSealPressure:   dredgerData.UnderwaterPumpSuctionSealPressure,
 			UnderwaterPumpShaftSealPressure:     dredgerData.UnderwaterPumpShaftSealPressure,
