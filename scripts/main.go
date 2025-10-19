@@ -65,6 +65,7 @@ func main() {
 	totalImported := 0
 
 	for _, file := range files {
+		now := time.Now()
 		if file.IsDir() || !strings.HasSuffix(strings.ToLower(file.Name()), ".xlsx") {
 			continue
 		}
@@ -89,7 +90,7 @@ func main() {
 		if err != nil {
 			fmt.Printf("导入文件 %s 失败: %v\n", filePath, err)
 		} else {
-			fmt.Printf("成功导入文件 %s，%d 条记录\n", filePath, imported)
+			fmt.Printf("成功导入文件 %s，%d 条记录，耗时 %v\n", filePath, imported, time.Since(now))
 			totalImported += imported
 		}
 	}
