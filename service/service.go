@@ -659,11 +659,13 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 	}
 	var err error
 
-	// 2. 一次性加载所有土质区域数据
+	// 2. 根据船名决定是否加载土质数据
 	var allRegions []model.SoilRegion
-	if err := s.db.Find(&allRegions).Error; err != nil {
-		logger.Logger.Errorf("加载土质区域数据失败: %v", err)
-		return nil, err
+	if strings.Contains(shipName, "敏龙") { // 只有敏龙需要土质数据
+		if err = s.db.Find(&allRegions).Error; err != nil {
+			logger.Logger.Errorf("加载土质区域数据失败: %v", err)
+			return nil, err
+		}
 	}
 
 	// ---------- 华安龙 ----------
@@ -689,105 +691,96 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 			return response, nil
 		}
 
-		// 3. 按土质对所有记录进行分组
-		recordsBySoil := make(map[string][]*model.DredgerDataHl)
-		for _, record := range allRecords {
-			soilType := findSoilType(record.CutterX, record.CutterY, record.BridgeDepth, allRegions)
-			recordsBySoil[soilType] = append(recordsBySoil[soilType], record)
-		}
-
-		// 4. 对每种土质的数据，分别计算最优参数
-		for soilType, records := range recordsBySoil {
-			// 初始化该土质的最优结果
-			optimalShiftForSoil := &OptimalShift{
-				MinEnergyShift: &ShiftWorkParams{
-					Parameters: ParameterStats{
-						BoosterPumpDischargePressure: Parameter{Max: -1},
-					},
+		// 3. 华安龙：不按土质分组，直接计算
+		optimalShiftForShip := &OptimalShift{
+			MinEnergyShift: &ShiftWorkParams{
+				Parameters: ParameterStats{
+					BoosterPumpDischargePressure: Parameter{Max: -1},
 				},
-			}
-
-			// 按班组对当前土质的记录进行分组
-			groups := make(map[int][]*model.DredgerDataHl)
-			for _, record := range records {
-				hour := time.UnixMilli(record.RecordTime).Hour()
-				switch {
-				case hour >= 0 && hour < 6:
-					groups[1] = append(groups[1], record)
-				case hour >= 6 && hour < 12:
-					groups[2] = append(groups[2], record)
-				case hour >= 12 && hour < 18:
-					groups[3] = append(groups[3], record)
-				default:
-					groups[4] = append(groups[4], record)
-				}
-			}
-
-			cfg := GetCfg(shipName)
-
-			for shift := 1; shift <= 4; shift++ {
-				shiftRecords, exists := groups[shift]
-				if !exists || len(shiftRecords) == 0 {
-					continue
-				}
-
-				var minTime, maxTime time.Time
-				maxTime, minTime = durationMinutesHl(minTime, maxTime, shiftRecords)
-				duration := maxTime.Sub(minTime).Minutes()
-				if duration <= 0 {
-					continue
-				}
-
-				var totalOutputRate float64
-				for _, r := range shiftRecords {
-					totalOutputRate += r.HourlyOutputRate
-				}
-				avgOutputRate := totalOutputRate / float64(len(shiftRecords))
-				totalProduction := avgOutputRate * (duration / 60)
-
-				avgVacHl, okVacHl := averageVacuumHL(shiftRecords, cfg)
-
-				var totalPower float64
-				for _, r := range shiftRecords {
-					totalPower += r.UnderwaterPumpPower + r.MudPump1Power + r.MudPump2Power
-				}
-				avgPower := totalPower / float64(len(shiftRecords))
-				totalEnergy := avgPower * (duration / 60)
-
-				// 更新最大产量班组
-				if totalProduction > optimalShiftForSoil.TotalProduction {
-					optimalShiftForSoil.TotalProduction = round(totalProduction)
-					params := calParamsHl(shiftRecords)
-					if okVacHl {
-						params.VacuumDegree.Average = round(avgVacHl)
-					}
-					if math.IsNaN(params.VacuumDegree.MaxProductionParam) || math.IsInf(params.VacuumDegree.MaxProductionParam, 0) {
-						params.VacuumDegree.MaxProductionParam = 0
-					}
-					optimalShiftForSoil.MaxProductionShift = &ShiftWorkParams{
-						ShiftName:  shiftName(shift),
-						Parameters: params,
-					}
-				}
-
-				// 更新最小能耗班组
-				if optimalShiftForSoil.MinEnergyShift.Parameters.BoosterPumpDischargePressure.Max == -1 || totalEnergy < optimalShiftForSoil.TotalEnergy {
-					optimalShiftForSoil.TotalEnergy = round(totalEnergy)
-					params := calParamsHl(shiftRecords)
-					if okVacHl {
-						params.VacuumDegree.Average = round(avgVacHl)
-					}
-					if math.IsNaN(params.VacuumDegree.MaxProductionParam) || math.IsInf(params.VacuumDegree.MaxProductionParam, 0) {
-						params.VacuumDegree.MaxProductionParam = 0
-					}
-					optimalShiftForSoil.MinEnergyShift = &ShiftWorkParams{
-						ShiftName:  shiftName(shift),
-						Parameters: params,
-					}
-				}
-			}
-			response.OptimalShiftsBySoil[soilType] = optimalShiftForSoil
+			},
 		}
+
+		// 按班组对所有记录进行分组
+		groups := make(map[int][]*model.DredgerDataHl)
+		for _, record := range allRecords {
+			hour := time.UnixMilli(record.RecordTime).Hour()
+			switch {
+			case hour >= 0 && hour < 6:
+				groups[1] = append(groups[1], record)
+			case hour >= 6 && hour < 12:
+				groups[2] = append(groups[2], record)
+			case hour >= 12 && hour < 18:
+				groups[3] = append(groups[3], record)
+			default:
+				groups[4] = append(groups[4], record)
+			}
+		}
+
+		cfg := GetCfg(shipName)
+
+		for shift := 1; shift <= 4; shift++ {
+			shiftRecords, exists := groups[shift]
+			if !exists || len(shiftRecords) == 0 {
+				continue
+			}
+
+			var minTime, maxTime time.Time
+			maxTime, minTime = durationMinutesHl(minTime, maxTime, shiftRecords)
+			duration := maxTime.Sub(minTime).Minutes()
+			if duration <= 0 {
+				continue
+			}
+
+			var totalOutputRate float64
+			for _, r := range shiftRecords {
+				totalOutputRate += r.HourlyOutputRate
+			}
+			avgOutputRate := totalOutputRate / float64(len(shiftRecords))
+			totalProduction := avgOutputRate * (duration / 60)
+
+			avgVacHl, okVacHl := averageVacuumHL(shiftRecords, cfg)
+
+			var totalPower float64
+			for _, r := range shiftRecords {
+				totalPower += r.UnderwaterPumpPower + r.MudPump1Power + r.MudPump2Power
+			}
+			avgPower := totalPower / float64(len(shiftRecords))
+			totalEnergy := avgPower * (duration / 60)
+
+			// 更新最大产量班组
+			if totalProduction > optimalShiftForShip.TotalProduction {
+				optimalShiftForShip.TotalProduction = round(totalProduction)
+				params := calParamsHl(shiftRecords)
+				if okVacHl {
+					params.VacuumDegree.Average = round(avgVacHl)
+				}
+				if math.IsNaN(params.VacuumDegree.MaxProductionParam) || math.IsInf(params.VacuumDegree.MaxProductionParam, 0) {
+					params.VacuumDegree.MaxProductionParam = 0
+				}
+				optimalShiftForShip.MaxProductionShift = &ShiftWorkParams{
+					ShiftName:  shiftName(shift),
+					Parameters: params,
+				}
+			}
+
+			// 更新最小能耗班组
+			if optimalShiftForShip.MinEnergyShift.Parameters.BoosterPumpDischargePressure.Max == -1 || totalEnergy < optimalShiftForShip.TotalEnergy {
+				optimalShiftForShip.TotalEnergy = round(totalEnergy)
+				params := calParamsHl(shiftRecords)
+				if okVacHl {
+					params.VacuumDegree.Average = round(avgVacHl)
+				}
+				if math.IsNaN(params.VacuumDegree.MaxProductionParam) || math.IsInf(params.VacuumDegree.MaxProductionParam, 0) {
+					params.VacuumDegree.MaxProductionParam = 0
+				}
+				optimalShiftForShip.MinEnergyShift = &ShiftWorkParams{
+					ShiftName:  shiftName(shift),
+					Parameters: params,
+				}
+			}
+		}
+		// 华安龙的结果使用 "default" 作为 key
+		response.OptimalShiftsBySoil["default"] = optimalShiftForShip
 
 		// ---------- 敏龙 ----------
 	} else if strings.Contains(shipName, "敏龙") {
@@ -811,7 +804,7 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 			return response, nil
 		}
 
-		// 3. 按土质对所有记录进行分组
+		// 3. 敏龙：按土质对所有记录进行分组 (allRegions 已在函数开头加载)
 		recordsBySoil := make(map[string][]*model.DredgerDatum)
 		for _, record := range allRecords {
 			soilType := findSoilType(record.CutterX, record.CutterY, record.CutterDepth, allRegions)
@@ -1504,7 +1497,7 @@ func (s *Service) GetShiftPie(shipName string, startTime, endTime int64) ([]*Shi
 
 				pw1 := 0.8 * Q * (P2 - P1)
 				pw2 := 0.8 * Q * (P3 - P2)
-				totalPower += (pw1 + pw2)
+				totalPower += pw1 + pw2
 			}
 			avgPower := totalPower / float64(len(shiftRecords))
 			totalEnergy := avgPower * (duration / 60)
