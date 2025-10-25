@@ -49,7 +49,7 @@ func durationMinutesHl(minTime, maxTime time.Time, records []*model.DredgerDataH
 	return maxTime, minTime
 }
 
-func calParams(records []*model.DredgerDatum) ParameterStats {
+func calParams(records []*model.DredgerDatum) (ParameterStats, int64) {
 	var (
 		horizontalSpeeds              = make([]float64, len(records))
 		carriageTravels               = make([]float64, len(records))
@@ -74,7 +74,7 @@ func calParams(records []*model.DredgerDatum) ParameterStats {
 		}
 		horizontalSpeeds[i] = r.TransverseSpeed
 		carriageTravels[i] = r.TrolleyTravel
-		cutterDepths[i] = r.CutterDepth
+		cutterDepths[i] = -r.CutterDepth
 		spumpRpms[i] = r.UnderwaterPumpSpeed
 		concentrations[i] = r.Concentration
 		flows[i] = r.FlowRate
@@ -142,6 +142,10 @@ func calParams(records []*model.DredgerDatum) ParameterStats {
 	boosterPumpDischargePressure.MaxProductionParam = round(boosterPumpDischargePressures[maxIndex])
 	vacuumDegree.MaxProductionParam = round(vacuumDegrees[maxIndex])
 
+	var optimalTime int64
+	if len(records) > maxIndex {
+		optimalTime = records[maxIndex].RecordTime
+	}
 	return ParameterStats{
 		HorizontalSpeed:              horizontalSpeed,
 		CarriageTravel:               carriageTravel,
@@ -151,10 +155,10 @@ func calParams(records []*model.DredgerDatum) ParameterStats {
 		Flow:                         flow,
 		BoosterPumpDischargePressure: boosterPumpDischargePressure,
 		VacuumDegree:                 vacuumDegree,
-	}
+	}, optimalTime
 }
 
-func calParamsHl(records []*model.DredgerDataHl) ParameterStats {
+func calParamsHl(records []*model.DredgerDataHl) (ParameterStats, int64) {
 	var (
 		horizontalSpeeds                 = make([]float64, len(records))
 		carriageTravels                  = make([]float64, len(records))
@@ -177,7 +181,7 @@ func calParamsHl(records []*model.DredgerDataHl) ParameterStats {
 		}
 		horizontalSpeeds[i] = r.TransverseSpeed
 		carriageTravels[i] = r.TrolleyTravel
-		cutterDepths[i] = r.BridgeDepth
+		cutterDepths[i] = -r.BridgeDepth
 		spumpRpms[i] = r.UnderwaterPumpSpeed
 		concentrations[i] = r.Concentration
 		flows[i] = r.FlowRate
@@ -236,6 +240,11 @@ func calParamsHl(records []*model.DredgerDataHl) ParameterStats {
 	flow.MaxProductionParam = round(flows[maxIndex])
 	underwaterPumpDischargePressure.MaxProductionParam = round(flows[maxIndex])
 
+	var optimalTime int64
+	if len(records) > maxIndex {
+		optimalTime = records[maxIndex].RecordTime
+	}
+
 	return ParameterStats{
 		HorizontalSpeed:              horizontalSpeed,
 		CarriageTravel:               carriageTravel,
@@ -245,7 +254,7 @@ func calParamsHl(records []*model.DredgerDataHl) ParameterStats {
 		Flow:                         flow,
 		BoosterPumpDischargePressure: underwaterPumpDischargePressure,
 		VacuumDegree:                 vacuumDegree,
-	}
+	}, optimalTime
 }
 
 // 统计计算通用函数

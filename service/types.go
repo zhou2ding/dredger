@@ -40,8 +40,9 @@ type (
 		TotalProduction    float64          `json:"-"`
 	}
 	ShiftWorkParams struct {
-		ShiftName  string         `json:"shiftName"`
-		Parameters ParameterStats `json:"parameters"`
+		ShiftName   string         `json:"shiftName"`
+		OptimalTime int64          `json:"optimalTime"`
+		Parameters  ParameterStats `json:"parameters"`
 	}
 	ParameterStats struct {
 		Flow                         Parameter       `json:"flow"`
