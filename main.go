@@ -8,6 +8,7 @@ import (
 	"dredger/pkg/logger"
 	"dredger/service"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -33,6 +34,33 @@ var upgrader = websocket.Upgrader{
 		// 允许所有来源的连接，方便开发
 		return true
 	},
+}
+
+type DbMigration struct {
+	MigrationName string    `gorm:"primaryKey"` // 迁移名称，作为主键
+	AppliedAt     time.Time // 应用时间
+}
+
+func runSqlFile(db *gorm.DB, filepath string) error {
+	log.Printf("准备执行SQL文件: %s\n", filepath)
+	sqlBytes, err := os.ReadFile(filepath)
+	if err != nil {
+		return fmt.Errorf("无法读取SQL文件 %s: %w", filepath, err)
+	}
+
+	sqlScript := string(sqlBytes)
+
+	// 在一个事务中执行整个脚本
+	// 这要求MySQL DSN中必须包含 &multiStatements=true
+	tx := db.Begin()
+	if err = tx.Exec(sqlScript).Error; err != nil {
+		log.Printf("执行SQL脚本失败，正在回滚: %v\n", err)
+		tx.Rollback()
+		return fmt.Errorf("执行SQL脚本失败: %w", err)
+	}
+
+	log.Printf("SQL脚本执行成功，正在提交事务: %s\n", filepath)
+	return tx.Commit().Error
 }
 
 // SensorData 定义了发送给前端的完整数据结构
@@ -593,7 +621,10 @@ func main() {
 	host := conf.Conf.GetString("database.host")
 	password := conf.Conf.GetString("database.password")
 	var err error
-	dsn := fmt.Sprintf("root:%s@tcp(%s)/dredger?charset=utf8mb4&parseTime=True&loc=Local", password, host)
+	dsn := fmt.Sprintf("root:%s@tcp(%s)/dredger?charset=utf8mb4&parseTime=True&loc=Local&multiStatements=true",
+		password,
+		host,
+	)
 	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
 		Logger: gormLogger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), gormLogger.Config{
 			SlowThreshold: time.Second,
@@ -605,6 +636,56 @@ func main() {
 		logger.Logger.Errorf("failed to connect database: %v", err)
 		return
 	}
+
+	// 1. 自动迁移（创建/更新）用于跟踪版本的 DbMigration 表
+	if err := db.AutoMigrate(&DbMigration{}); err != nil {
+		log.Fatalf("创建迁移记录表(db_migrations)失败: %v", err)
+	}
+
+	// 2. 定义 soil_regions.sql 脚本的唯一迁移名称
+	const soilMigrationName = "init_soil_regions_v1" // v1代表版本1
+	var migrationRecord DbMigration
+
+	// 3. 检查这个迁移是否已经执行过
+	err = db.Where("migration_name = ?", soilMigrationName).First(&migrationRecord).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// 记录未找到，说明是第一次运行，需要执行SQL文件
+		log.Printf("未找到迁移记录 '%s'，准备执行 soil_regions.sql...", soilMigrationName)
+
+		// 4. 在事务中执行 SQL 文件
+		if err := runSqlFile(db, "gen/soil_regions.sql"); err != nil {
+			// 如果执行失败，程序将终止
+			log.Fatalf("执行迁移 '%s' (soil_regions.sql) 失败: %v", soilMigrationName, err)
+		}
+
+		// 5. 将迁移记录写入数据库，标记为已完成
+		if err := db.Create(&DbMigration{MigrationName: soilMigrationName, AppliedAt: time.Now()}).Error; err != nil {
+			log.Fatalf("记录迁移 '%s' 到数据库失败: %v", soilMigrationName, err)
+		}
+
+		log.Printf("成功应用并记录迁移: '%s'", soilMigrationName)
+
+	} else if err != nil {
+		// 如果是其他数据库错误，终止程序
+		log.Fatalf("检查迁移 '%s' 时出错: %v", soilMigrationName, err)
+	} else {
+		// 记录已存在，说明已执行过，跳过
+		log.Printf("迁移 '%s' 已在 %s 应用过，本次启动跳过。", migrationRecord.MigrationName, migrationRecord.AppliedAt.Format(time.RFC3339))
+	}
+
+	log.Println("正在自动迁移所有业务数据表...")
+	err = db.AutoMigrate(
+		&model.DataDate{},           // 对应 model/data_date.gen.go
+		&model.DredgerDatum{},       // 对应 model/dredger_data.gen.go
+		&model.DredgerDataHl{},      // 对应 model/dredger_data_hl.gen.go
+		&model.TheoryOptimalParam{}, // 对应 model/theory_optimal_params.gen.go
+		&model.SoilRegion{},         // 对应 model/soil_regions.gen.go (迁移表结构)
+	)
+	if err != nil {
+		log.Fatalf("自动迁移业务模型失败: %v", err)
+	}
+	log.Println("业务数据表迁移完成。")
 
 	svc := service.NewService(db)
 	r := SetupRouter(svc)

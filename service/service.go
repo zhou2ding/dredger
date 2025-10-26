@@ -334,7 +334,7 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 
 			var minTime, maxTime time.Time
 			maxTime, minTime = durationMinutesHl(minTime, maxTime, shiftRecords)
-			duration := maxTime.Sub(minTime).Minutes()
+			duration := calculateAccumulatedDurationHl(shiftRecords)
 			if duration <= 0 {
 				continue
 			}
@@ -384,7 +384,7 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 		var records []*model.DredgerDatum
 		// 确保查询了计算土质所需的 cutter_x, cutter_y, cutter_depth
 		columns := []string{
-			"ship_name", "record_time", "output_rate", "underwater_pump_suction_vacuum",
+			"ship_name", "record_time", "output_rate", "current_shift_output_rate", "underwater_pump_suction_vacuum",
 			"intermediate_pressure", "booster_pump_discharge_pressure", "flow_rate",
 			"cutter_x", "cutter_y", "cutter_depth",
 		}
@@ -420,14 +420,14 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 
 			var minTime, maxTime time.Time
 			maxTime, minTime = durationMinutes(minTime, maxTime, shiftRecords)
-			duration := maxTime.Sub(minTime).Minutes()
+			duration := calculateAccumulatedDuration(shiftRecords)
 			if duration <= 0 {
 				continue
 			}
 
 			var totalOutputRate float64
 			for _, r := range shiftRecords {
-				totalOutputRate += r.OutputRate
+				totalOutputRate += r.CurrentShiftOutputRate
 			}
 			avgOutputRate := totalOutputRate / float64(len(shiftRecords))
 			totalProduction := avgOutputRate * (duration / 60)
@@ -471,171 +471,6 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 				TotalProduction: round(totalProduction),
 				TotalEnergy:     round(unitEnergyConsumption),
 				SoilTypes:       soilTypes, // 3. 将土质数据添加到响应中
-			})
-		}
-	} else {
-		return nil, fmt.Errorf("船名[%s]暂不支持此统计", shipName)
-	}
-
-	sort.Slice(stats, func(i, j int) bool {
-		if stats[i].BeginTime.Equal(stats[j].BeginTime) {
-			return stats[i].ShiftName < stats[j].ShiftName
-		}
-		return stats[i].BeginTime.Before(stats[j].BeginTime)
-	})
-
-	return stats, nil
-}
-
-func (s *Service) GetShiftStatsOld(shipName string, startTime, endTime int64) ([]*ShiftStat, error) {
-	var stats []*ShiftStat
-	var err error
-
-	if strings.Contains(shipName, "华安龙") {
-		var records []*model.DredgerDataHl
-		columns := []string{
-			"ship_name", "record_time", "hourly_output_rate",
-			"underwater_pump_power", "mud_pump_1_power", "mud_pump_2_power",
-		}
-		err = s.db.Select(columns).
-			Where("ship_name = ?", shipName).
-			Where("record_time BETWEEN ? AND ?", startTime, endTime).
-			Find(&records).Error
-		if err != nil {
-			logger.Logger.Errorf("[华安龙]查询班组统计数据失败: %v", err)
-			return nil, err
-		}
-
-		groups := make(map[int][]*model.DredgerDataHl)
-		for _, record := range records {
-			hour := time.UnixMilli(record.RecordTime).Hour()
-			switch {
-			case hour >= 0 && hour < 6:
-				groups[1] = append(groups[1], record)
-			case hour >= 6 && hour < 12:
-				groups[2] = append(groups[2], record)
-			case hour >= 12 && hour < 18:
-				groups[3] = append(groups[3], record)
-			default:
-				groups[4] = append(groups[4], record)
-			}
-		}
-
-		for shift := 1; shift <= 4; shift++ {
-			shiftRecords, exists := groups[shift]
-			if !exists || len(shiftRecords) == 0 {
-				continue
-			}
-
-			var minTime, maxTime time.Time
-			maxTime, minTime = durationMinutesHl(minTime, maxTime, shiftRecords)
-			duration := maxTime.Sub(minTime).Minutes()
-			if duration <= 0 {
-				continue
-			}
-
-			var totalOutputRate float64
-			for _, r := range shiftRecords {
-				totalOutputRate += r.HourlyOutputRate
-			}
-			avgOutputRate := totalOutputRate / float64(len(shiftRecords))
-			totalProduction := avgOutputRate * (duration / 60)
-
-			var totalPower float64
-			for _, r := range shiftRecords {
-				totalPower += r.UnderwaterPumpPower + r.MudPump1Power + r.MudPump2Power
-			}
-			avgPower := totalPower / float64(len(shiftRecords))
-			totalEnergyConsumption := avgPower * (duration / 60)
-			unitEnergyConsumption := 0.0
-			if totalProduction > 0 {
-				unitEnergyConsumption = totalEnergyConsumption / totalProduction
-			}
-
-			stats = append(stats, &ShiftStat{
-				ShiftName:       shiftName(shift),
-				BeginTime:       minTime,
-				EndTime:         maxTime,
-				WorkDuration:    duration,
-				TotalProduction: round(totalProduction),
-				TotalEnergy:     round(unitEnergyConsumption),
-			})
-		}
-	} else if strings.Contains(shipName, "敏龙") {
-		var records []*model.DredgerDatum
-		columns := []string{
-			"ship_name", "record_time", "output_rate", "underwater_pump_suction_vacuum",
-			"intermediate_pressure", "booster_pump_discharge_pressure", "flow_rate",
-		}
-		err = s.db.Select(columns).
-			Where("ship_name = ?", shipName).
-			Where("record_time BETWEEN ? AND ?", startTime, endTime).
-			Find(&records).Error
-		if err != nil {
-			logger.Logger.Errorf("[敏龙]查询班组统计数据失败: %v", err)
-			return nil, err
-		}
-
-		groups := make(map[int][]*model.DredgerDatum)
-		for _, record := range records {
-			hour := time.UnixMilli(record.RecordTime).Hour()
-			switch {
-			case hour >= 0 && hour < 6:
-				groups[1] = append(groups[1], record)
-			case hour >= 6 && hour < 12:
-				groups[2] = append(groups[2], record)
-			case hour >= 12 && hour < 18:
-				groups[3] = append(groups[3], record)
-			default:
-				groups[4] = append(groups[4], record)
-			}
-		}
-
-		for shift := 1; shift <= 4; shift++ {
-			shiftRecords, exists := groups[shift]
-			if !exists || len(shiftRecords) == 0 {
-				continue
-			}
-
-			var minTime, maxTime time.Time
-			maxTime, minTime = durationMinutes(minTime, maxTime, shiftRecords)
-			duration := maxTime.Sub(minTime).Minutes()
-			if duration <= 0 {
-				continue
-			}
-
-			var totalOutputRate float64
-			for _, r := range shiftRecords {
-				totalOutputRate += r.OutputRate
-			}
-			avgOutputRate := totalOutputRate / float64(len(shiftRecords))
-			totalProduction := avgOutputRate * (duration / 60)
-
-			var totalPower float64
-			for _, r := range shiftRecords {
-				P1 := r.UnderwaterPumpSuctionVacuum
-				P2 := r.IntermediatePressure
-				P3 := r.BoosterPumpDischargePressure
-				Q := r.FlowRate
-				pw1 := 0.8 * Q * (P2 - P1)
-				pw2 := 0.8 * Q * (P3 - P2)
-				pw := pw1 + pw2
-				totalPower += pw
-			}
-			avgPower := totalPower / float64(len(shiftRecords))
-			totalEnergyConsumption := avgPower * (duration / 60)
-			unitEnergyConsumption := 0.0
-			if totalProduction > 0 {
-				unitEnergyConsumption = totalEnergyConsumption / totalProduction
-			}
-
-			stats = append(stats, &ShiftStat{
-				ShiftName:       shiftName(shift),
-				BeginTime:       minTime,
-				EndTime:         maxTime,
-				WorkDuration:    duration,
-				TotalProduction: round(totalProduction),
-				TotalEnergy:     round(unitEnergyConsumption),
 			})
 		}
 	} else {
@@ -726,7 +561,7 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 
 			var minTime, maxTime time.Time
 			maxTime, minTime = durationMinutesHl(minTime, maxTime, shiftRecords)
-			duration := maxTime.Sub(minTime).Minutes()
+			duration := calculateAccumulatedDurationHl(shiftRecords)
 			if duration <= 0 {
 				continue
 			}
@@ -787,7 +622,7 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 		// ---------- 敏龙 ----------
 	} else if strings.Contains(shipName, "敏龙") {
 		columns := []string{
-			"ship_name", "record_time", "output_rate", "transverse_speed",
+			"ship_name", "record_time", "current_shift_output_rate", "transverse_speed",
 			"trolley_travel", "cutter_depth", "underwater_pump_speed", "concentration",
 			"flow_rate", "booster_pump_discharge_pressure", "underwater_pump_suction_vacuum",
 			"intermediate_pressure", "water_density", "density", "field_slurry_density",
@@ -848,14 +683,14 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 
 				var minTime, maxTime time.Time
 				maxTime, minTime = durationMinutes(minTime, maxTime, shiftRecords)
-				duration := maxTime.Sub(minTime).Minutes()
+				duration := calculateAccumulatedDuration(shiftRecords)
 				if duration <= 0 {
 					continue
 				}
 
 				var totalOutputRate float64
 				for _, r := range shiftRecords {
-					totalOutputRate += r.OutputRate
+					totalOutputRate += r.CurrentShiftOutputRate
 				}
 				avgOutputRate := totalOutputRate / float64(len(shiftRecords))
 				totalProduction := avgOutputRate * (duration / 60)
@@ -1029,7 +864,7 @@ func (s *Service) GetShiftPie(shipName string, startTime, endTime int64) ([]*Shi
 
 			var minTime, maxTime time.Time
 			maxTime, minTime = durationMinutesHl(minTime, maxTime, shiftRecords)
-			duration := maxTime.Sub(minTime).Minutes()
+			duration := calculateAccumulatedDurationHl(shiftRecords)
 			if duration <= 0 {
 				continue
 			}
@@ -1090,7 +925,7 @@ func (s *Service) GetShiftPie(shipName string, startTime, endTime int64) ([]*Shi
 
 			var minTime, maxTime time.Time
 			maxTime, minTime = durationMinutes(minTime, maxTime, shiftRecords)
-			duration := maxTime.Sub(minTime).Minutes()
+			duration := calculateAccumulatedDuration(shiftRecords)
 			if duration <= 0 {
 				continue
 			}

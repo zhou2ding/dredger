@@ -36,6 +36,80 @@ func durationMinutes(minTime, maxTime time.Time, records []*model.DredgerDatum) 
 	return maxTime, minTime
 }
 
+// 计算华安龙的 "按天" 累计施工时长 (分钟)
+func calculateAccumulatedDurationHl(records []*model.DredgerDataHl) float64 {
+	// 1. 按 "天" (日期字符串) 分组
+	recordsByDay := make(map[string][]*model.DredgerDataHl)
+	for _, r := range records {
+		dayKey := time.UnixMilli(r.RecordTime).Format("2006-01-02")
+		recordsByDay[dayKey] = append(recordsByDay[dayKey], r)
+	}
+
+	var totalDuration time.Duration
+
+	// 2. 遍历每一天的数据
+	for _, dayRecords := range recordsByDay {
+		if len(dayRecords) < 2 { // 当天数据不足2条，无法计算时长
+			continue
+		}
+
+		// 3. 找到这一天的 minTime 和 maxTime
+		var dayMinTime, dayMaxTime time.Time
+		for i, r := range dayRecords {
+			t := time.UnixMilli(r.RecordTime)
+			if i == 0 || t.Before(dayMinTime) {
+				dayMinTime = t
+			}
+			if i == 0 || t.After(dayMaxTime) {
+				dayMaxTime = t
+			}
+		}
+
+		// 4. 累加这一天的时长
+		totalDuration += dayMaxTime.Sub(dayMinTime)
+	}
+
+	// 5. 返回总分钟数
+	return totalDuration.Minutes()
+}
+
+// 计算敏龙的 "按天" 累计施工时长 (分钟)
+func calculateAccumulatedDuration(records []*model.DredgerDatum) float64 {
+	// 1. 按 "天" (日期字符串) 分组
+	recordsByDay := make(map[string][]*model.DredgerDatum)
+	for _, r := range records {
+		dayKey := time.UnixMilli(r.RecordTime).Format("2006-01-02")
+		recordsByDay[dayKey] = append(recordsByDay[dayKey], r)
+	}
+
+	var totalDuration time.Duration
+
+	// 2. 遍历每一天的数据
+	for _, dayRecords := range recordsByDay {
+		if len(dayRecords) < 2 { // 当天数据不足2条，无法计算时长
+			continue
+		}
+
+		// 3. 找到这一天的 minTime 和 maxTime
+		var dayMinTime, dayMaxTime time.Time
+		for i, r := range dayRecords {
+			t := time.UnixMilli(r.RecordTime)
+			if i == 0 || t.Before(dayMinTime) {
+				dayMinTime = t
+			}
+			if i == 0 || t.After(dayMaxTime) {
+				dayMaxTime = t
+			}
+		}
+
+		// 4. 累加这一天的时长
+		totalDuration += dayMaxTime.Sub(dayMinTime)
+	}
+
+	// 5. 返回总分钟数
+	return totalDuration.Minutes()
+}
+
 func durationMinutesHl(minTime, maxTime time.Time, records []*model.DredgerDataHl) (time.Time, time.Time) {
 	for i, r := range records {
 		t := time.UnixMilli(r.RecordTime)
@@ -68,11 +142,10 @@ func calParams(records []*model.DredgerDatum) (ParameterStats, int64) {
 	maxIndex := 0
 
 	for i, r := range records {
-		if r.OutputRate > maxOutputRate {
-			maxOutputRate = r.OutputRate
+		if r.CurrentShiftOutputRate > maxOutputRate {
+			maxOutputRate = r.CurrentShiftOutputRate
 			maxIndex = i
 		}
-		horizontalSpeeds[i] = r.TransverseSpeed
 		carriageTravels[i] = r.TrolleyTravel
 		cutterDepths[i] = -r.CutterDepth
 		spumpRpms[i] = r.UnderwaterPumpSpeed
@@ -80,7 +153,7 @@ func calParams(records []*model.DredgerDatum) (ParameterStats, int64) {
 		flows[i] = r.FlowRate
 		boosterPumpDischargePressures[i] = r.BoosterPumpDischargePressure
 		vacuumDegrees[i] = calcVacuumKPa(r, cfg)
-		if r.OutputRate > 0 && r.TransverseSpeed == 0 {
+		if r.CurrentShiftOutputRate > 0 && r.TransverseSpeed == 0 {
 			currentTime := r.RecordTime
 			targetTime := currentTime + calHorizontalSpeedTimeDuration // 5分钟后的时间戳
 			var nextRecord *model.DredgerDatum
@@ -115,7 +188,7 @@ func calParams(records []*model.DredgerDatum) (ParameterStats, int64) {
 				horizontalSpeeds[i] = transverseSpeed
 				warning = "横移速度为0，已通过绞刀位置重新计算"
 			} else {
-				horizontalSpeeds[i] = r.TransverseSpeed
+				horizontalSpeeds[i] = math.Abs(r.TransverseSpeed)
 				warning = "存在产量非0，但是横移速度为0的数据，且无法计算，请检查传感器状态"
 			}
 		}
@@ -173,19 +246,28 @@ func calParamsHl(records []*model.DredgerDataHl) (ParameterStats, int64) {
 
 	maxOutputRate := -1.0
 	maxIndex := 0
+	cfg := GetCfg(records[0].ShipName)
 
 	for i, r := range records {
 		if r.HourlyOutputRate > maxOutputRate {
 			maxOutputRate = r.HourlyOutputRate
 			maxIndex = i
 		}
-		horizontalSpeeds[i] = r.TransverseSpeed
 		carriageTravels[i] = r.TrolleyTravel
 		cutterDepths[i] = -r.BridgeDepth
 		spumpRpms[i] = r.UnderwaterPumpSpeed
 		concentrations[i] = r.Concentration
 		flows[i] = r.FlowRate
-		underwaterPumpDischargePressures[i] = r.UnderwaterPumpDischargePressure
+		var pumpPressure float64
+		if r.MudPump2DischargePressure != 0 {
+			pumpPressure = r.MudPump2DischargePressure
+		} else if r.MudPump1DischargePressure != 0 {
+			pumpPressure = r.MudPump1DischargePressure
+		} else if r.UnderwaterPumpDischargePressure != 0 {
+			pumpPressure = r.UnderwaterPumpDischargePressure
+		}
+		underwaterPumpDischargePressures[i] = pumpPressure
+		vacuumDegrees[i] = CalcVacuumKPaFromHL(r, cfg)
 		if r.HourlyOutputRate > 0 && r.TransverseSpeed == 0 {
 			currentTime := r.RecordTime
 			targetTime := currentTime + calHorizontalSpeedTimeDuration
@@ -214,7 +296,7 @@ func calParamsHl(records []*model.DredgerDataHl) (ParameterStats, int64) {
 				horizontalSpeeds[i] = transverseSpeed
 				warning = "横移速度为0，已通过绞刀位置重新计算"
 			} else {
-				horizontalSpeeds[i] = r.TransverseSpeed
+				horizontalSpeeds[i] = math.Abs(r.TransverseSpeed)
 				warning = "存在产量非0，但是横移速度为0的数据，且无法计算，请检查传感器状态"
 			}
 		}
@@ -239,6 +321,7 @@ func calParamsHl(records []*model.DredgerDataHl) (ParameterStats, int64) {
 	concentration.MaxProductionParam = round(concentrations[maxIndex])
 	flow.MaxProductionParam = round(flows[maxIndex])
 	underwaterPumpDischargePressure.MaxProductionParam = round(flows[maxIndex])
+	vacuumDegree.MaxProductionParam = round(vacuumDegrees[maxIndex])
 
 	var optimalTime int64
 	if len(records) > maxIndex {
