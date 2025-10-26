@@ -18,7 +18,7 @@ type TheoryOptimalParam struct {
 	CreatedAt                    time.Time      `gorm:"column:created_at;comment:创建时间" json:"created_at"`                                                   // 创建时间
 	UpdatedAt                    time.Time      `gorm:"column:updated_at;comment:更新时间" json:"updated_at"`                                                   // 更新时间
 	DeletedAt                    gorm.DeletedAt `gorm:"column:deleted_at;comment:删除时间" json:"deleted_at"`                                                   // 删除时间
-	ShipName                     string         `gorm:"column:ship_name;not null;comment:船名" json:"ship_name"`                                              // 船名
+	ShipName                     string         `gorm:"column:ship_name;not null;type:varchar(191);comment:船名" json:"ship_name"`                            // 船名
 	Flow                         float64        `gorm:"column:flow;comment:流量(m³/h)" json:"flow"`                                                           // 流量(m³/h)
 	Concentration                float64        `gorm:"column:concentration;comment:浓度(%)" json:"concentration"`                                            // 浓度(%)
 	SPumpRpm                     float64        `gorm:"column:s_pump_rpm;comment:水下泵转速(rpm)" json:"s_pump_rpm"`                                             // 水下泵转速(rpm)

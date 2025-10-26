@@ -9,7 +9,7 @@ const TableNameDredgerDatum = "dredger_data"
 // DredgerDatum 敏龙绞吸式挖泥船施工数据表
 type DredgerDatum struct {
 	ID                                int64   `gorm:"column:id;primaryKey;autoIncrement:true;comment:主键id" json:"id"`                                               // 主键id
-	ShipName                          string  `gorm:"column:ship_name;not null;comment:船名" json:"ship_name"`                                                        // 船名
+	ShipName                          string  `gorm:"column:ship_name;not null;type:varchar(191);comment:船名" json:"ship_name"`                                      // 船名                                                       // 船名
 	RecordTime                        int64   `gorm:"column:record_time;comment:时间" json:"record_time"`                                                             // 时间
 	LeftEarDraft                      float64 `gorm:"column:left_ear_draft;comment:左耳轴吃水" json:"left_ear_draft"`                                                    // 左耳轴吃水
 	UnderwaterPumpSuctionSealPressure float64 `gorm:"column:underwater_pump_suction_seal_pressure;comment:水下泵吸入端封水压力" json:"underwater_pump_suction_seal_pressure"` // 水下泵吸入端封水压力

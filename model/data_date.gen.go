@@ -9,7 +9,7 @@ const TableNameDataDate = "data_date"
 // DataDate mapped from table <data_date>
 type DataDate struct {
 	ID       int32  `gorm:"column:id;primaryKey;autoIncrement:true" json:"id"`
-	ShipName string `gorm:"column:ship_name;not null" json:"ship_name"`
+	ShipName string `gorm:"column:ship_name;not null;type:varchar(191)" json:"ship_name"`
 	Date     int64  `gorm:"column:date" json:"date"`
 }
 
