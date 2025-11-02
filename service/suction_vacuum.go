@@ -3,6 +3,7 @@ package service
 import (
 	"dredger/model"
 	"math"
+	"strings"
 )
 
 type ShipHydraulicsConfig struct {
@@ -20,64 +21,52 @@ type ShipHydraulicsConfig struct {
 	VacuumOutUnit            string  // "kPa"（默认）
 }
 
-var shipCfg = map[string]ShipHydraulicsConfig{
-	"敏龙": {
-		PatmPa: 101325,
-		G:      9.80665,
-		// D：Excel “泥管直径” = 0.70m，本配置置0表示优先用记录里的值
-		PipeInnerDiameterM: 0.0,
-
-		// L：用表8.3.3-2（2.4中值）× Excel 几何直管均值(≈32.23m) → 77.36m
-		SuctionPipeLengthM: 77.36,
-
-		// 采用折算比方案时，局部件已包含在折算里，这里设 0
-		LocalEqLengthM: 0.0,
-
-		// 表2.1（D=0.70m）清水沿程阻力系数
-		FrictionFactorClearWater: 0.0130,
-
-		// 按Word：泥浆 f = 清水 f × (ρm/ρw)
-		UseDensityRatio: true,
-
-		// 布置图尺寸（暂以 2.5m 先跑通；拿到真值就替换）
-		PumpAboveBottomM: 2.5,
-
-		// 兜底：若几何缺失时使用（可以与上面相同）
-		DefaultHsPumpM: 2.5,
-
-		// 与Excel一致
-		FlowRateUnit:  "m3/h",
-		DensityUnit:   "", // 让代码按 0~5 识别成相对密度×1000
-		VacuumOutUnit: "kPa",
-	},
-
-	// 先临时复用敏龙的值；拿到“华安龙”的 D、角度后再另行计算 L 与 λw
-	"华安龙": {
-		PatmPa:                   101325,
-		G:                        9.80665,
-		PipeInnerDiameterM:       0.0,
-		SuctionPipeLengthM:       77.36,
-		LocalEqLengthM:           0.0,
-		FrictionFactorClearWater: 0.0130,
-		UseDensityRatio:          true,
-		PumpAboveBottomM:         2.5,
-		DefaultHsPumpM:           2.5,
-		FlowRateUnit:             "m3/h",
-		DensityUnit:              "",
-		VacuumOutUnit:            "kPa",
-	},
-}
-
 func GetCfg(ship string) ShipHydraulicsConfig {
-	if c, ok := shipCfg[ship]; ok {
-		return c
-	}
-	// 默认配置（尽量保守）
-	return ShipHydraulicsConfig{
-		PatmPa:        101325,
-		G:             9.80665,
-		FlowRateUnit:  "m3/h",
-		VacuumOutUnit: "kPa",
+	if strings.Contains(ship, "华安龙") {
+		return ShipHydraulicsConfig{
+			PatmPa:                   101325,
+			G:                        9.80665,
+			PipeInnerDiameterM:       0.0,
+			SuctionPipeLengthM:       77.36,
+			LocalEqLengthM:           0.0,
+			FrictionFactorClearWater: 0.0130,
+			UseDensityRatio:          true,
+			PumpAboveBottomM:         2.5,
+			DefaultHsPumpM:           2.5,
+			FlowRateUnit:             "m3/h",
+			DensityUnit:              "",
+			VacuumOutUnit:            "kPa",
+		}
+	} else {
+		return ShipHydraulicsConfig{
+			PatmPa: 101325,
+			G:      9.80665,
+			// D：Excel “泥管直径” = 0.70m，本配置置0表示优先用记录里的值
+			PipeInnerDiameterM: 0.0,
+
+			// L：用表8.3.3-2（2.4中值）× Excel 几何直管均值(≈32.23m) → 77.36m
+			SuctionPipeLengthM: 77.36,
+
+			// 采用折算比方案时，局部件已包含在折算里，这里设 0
+			LocalEqLengthM: 0.0,
+
+			// 表2.1（D=0.70m）清水沿程阻力系数
+			FrictionFactorClearWater: 0.0130,
+
+			// 按Word：泥浆 f = 清水 f × (ρm/ρw)
+			UseDensityRatio: true,
+
+			// 布置图尺寸（暂以 2.5m 先跑通；拿到真值就替换）
+			PumpAboveBottomM: 2.5,
+
+			// 兜底：若几何缺失时使用（可以与上面相同）
+			DefaultHsPumpM: 2.5,
+
+			// 与Excel一致
+			FlowRateUnit:  "m3/h",
+			DensityUnit:   "", // 让代码按 0~5 识别成相对密度×1000
+			VacuumOutUnit: "kPa",
+		}
 	}
 }
 

@@ -143,10 +143,8 @@ func (s *Service) ImportData(file io.Reader, shipName string, cover bool, startD
 
 	if strings.Contains(shipName, "华安龙") {
 		importedCount, err = executeImport[model.DredgerDataHl](tx, rows, shipName, cover)
-	} else if strings.Contains(shipName, "敏龙") {
-		importedCount, err = executeImport[model.DredgerDatum](tx, rows, shipName, cover)
 	} else {
-		return nil, fmt.Errorf("船名[%s]有误，请检查Excel文件后重试", shipName)
+		importedCount, err = executeImport[model.DredgerDatum](tx, rows, shipName, cover)
 	}
 
 	if err != nil {
@@ -380,7 +378,7 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 				SoilTypes:       soilTypes, // 3. 将土质数据添加到响应中
 			})
 		}
-	} else if strings.Contains(shipName, "敏龙") {
+	} else {
 		var records []*model.DredgerDatum
 		// 确保查询了计算土质所需的 cutter_x, cutter_y, cutter_depth
 		columns := []string{
@@ -473,8 +471,6 @@ func (s *Service) GetShiftStats(shipName string, startTime, endTime int64) ([]*S
 				SoilTypes:       soilTypes, // 3. 将土质数据添加到响应中
 			})
 		}
-	} else {
-		return nil, fmt.Errorf("船名[%s]暂不支持此统计", shipName)
 	}
 
 	sort.Slice(stats, func(i, j int) bool {
@@ -496,7 +492,8 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 
 	// 2. 根据船名决定是否加载土质数据
 	var allRegions []model.SoilRegion
-	if strings.Contains(shipName, "敏龙") { // 只有敏龙需要土质数据
+	isMinLong := strings.Contains(shipName, "敏龙")
+	if isMinLong { // 只有敏龙需要土质数据
 		if err = s.db.Find(&allRegions).Error; err != nil {
 			logger.Logger.Errorf("加载土质区域数据失败: %v", err)
 			return nil, err
@@ -620,7 +617,7 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 		response.OptimalShiftsBySoil["default"] = optimalShiftForShip
 
 		// ---------- 敏龙 ----------
-	} else if strings.Contains(shipName, "敏龙") {
+	} else {
 		columns := []string{
 			"ship_name", "record_time", "current_shift_output_rate", "transverse_speed",
 			"trolley_travel", "cutter_depth", "underwater_pump_speed", "concentration",
@@ -641,14 +638,20 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 			return response, nil
 		}
 
-		// 3. 敏龙：按土质对所有记录进行分组 (allRegions 已在函数开头加载)
+		// 根据 isMinLong 决定如何分组 ***
 		recordsBySoil := make(map[string][]*model.DredgerDatum)
-		for _, record := range allRecords {
-			soilType := findSoilType(record.CutterX, record.CutterY, record.CutterDepth, allRegions)
-			recordsBySoil[soilType] = append(recordsBySoil[soilType], record)
+		if isMinLong {
+			// 敏龙：按土质对所有记录进行分组 (allRegions 已在函数开头加载)
+			for _, record := range allRecords {
+				soilType := findSoilType(record.CutterX, record.CutterY, record.CutterDepth, allRegions)
+				recordsBySoil[soilType] = append(recordsBySoil[soilType], record)
+			}
+		} else {
+			// 其他船：不分土质，所有数据归到 "default" 组
+			recordsBySoil["default"] = allRecords
 		}
 
-		// 4. 对每种土质的数据，分别计算最优参数
+		// 4. 对每种土质(或 "default")的数据，分别计算最优参数
 		for soilType, records := range recordsBySoil {
 			optimalShiftForSoil := &OptimalShift{
 				MinEnergyShift: &ShiftWorkParams{
@@ -744,8 +747,6 @@ func (s *Service) GetOptimalShift(shipName string, startTime, endTime int64) (*O
 			}
 			response.OptimalShiftsBySoil[soilType] = optimalShiftForSoil
 		}
-	} else {
-		return nil, fmt.Errorf("船名[%s]暂不支持此统计", shipName)
 	}
 
 	return response, nil
@@ -789,10 +790,8 @@ func (s *Service) GetColumns(shipName string) []*ColumnInfo {
 
 	if strings.Contains(shipName, "华安龙") {
 		refType = reflect.TypeOf(model.DredgerDataHl{})
-	} else if strings.Contains(shipName, "敏龙") {
-		refType = reflect.TypeOf(model.DredgerDatum{})
 	} else {
-		return nil
+		refType = reflect.TypeOf(model.DredgerDatum{})
 	}
 
 	excludes := map[string]bool{
@@ -892,7 +891,7 @@ func (s *Service) GetShiftPie(shipName string, startTime, endTime int64) ([]*Shi
 				},
 			})
 		}
-	} else if strings.Contains(shipName, "敏龙") {
+	} else {
 		var records []*model.DredgerDatum
 		err = s.db.Where("ship_name = ?", shipName).
 			Where("record_time BETWEEN ? AND ?", startTime, endTime).
@@ -960,8 +959,6 @@ func (s *Service) GetShiftPie(shipName string, startTime, endTime int64) ([]*Shi
 				},
 			})
 		}
-	} else {
-		return nil, fmt.Errorf("船名[%s]暂不支持此统计", shipName)
 	}
 
 	return pies, nil
@@ -975,14 +972,12 @@ func (s *Service) GetColumnDataList(columnName, shipName string, startTime, endT
 	if strings.Contains(shipName, "华安龙") {
 		hl := model.DredgerDataHl{}
 		tableName = hl.TableName()
-	} else if strings.Contains(shipName, "敏龙") {
+	} else {
 		if columnName == "hourly_output_rate" {
 			columnName = "current_shift_output_rate"
 		}
 		ml := model.DredgerDatum{}
 		tableName = ml.TableName()
-	} else {
-		return nil, fmt.Errorf("船名[%s]暂不支持此统计", shipName)
 	}
 	cols = append(cols, columnName)
 
@@ -1158,7 +1153,7 @@ func (s *Service) GetAllShiftParameters(shipName string, startTime, endTime int6
 			allShiftParams = append(allShiftParams, params)
 		}
 
-	} else if strings.Contains(shipName, "敏龙") {
+	} else {
 		columns := []string{
 			"ship_name", "record_time", "output_rate",
 			// 统计参数
@@ -1209,8 +1204,6 @@ func (s *Service) GetAllShiftParameters(shipName string, startTime, endTime int6
 			}
 			allShiftParams = append(allShiftParams, params)
 		}
-	} else {
-		return nil, fmt.Errorf("船名[%s]暂不支持此统计", shipName)
 	}
 
 	return allShiftParams, nil
@@ -1638,7 +1631,7 @@ func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
 		}
 		return result, nil
 
-	} else if strings.Contains(shipName, "敏龙") {
+	} else {
 		requiredColumns := []string{
 			"record_time", "underwater_pump_suction_vacuum", "flow_rate", "concentration",
 			"underwater_pump_speed", "cutter_depth", "trolley_travel", "transverse_speed",
@@ -1693,7 +1686,5 @@ func (s *Service) GetPlaybackData(shipName string) (*PlaybackData, error) {
 		}
 		return result, nil
 
-	} else {
-		return nil, fmt.Errorf("船名[%s]暂不支持回放", shipName)
 	}
 }

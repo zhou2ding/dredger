@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log"
 
@@ -35,13 +36,11 @@ func main() {
 	}
 }
 
-// handleConnection 现在会持续处理来自一个客户端的多个请求
 func handleConnection(conn net.Conn) {
 	defer func() {
 		conn.Close()
 	}()
 
-	// *** FIX: 使用循环来持续处理请求 ***
 	for {
 		// 设置一个读取超时，例如5秒。如果5秒内没收到任何数据，
 		// 就认为客户端已断开，然后关闭这个连接。
@@ -54,7 +53,10 @@ func handleConnection(conn net.Conn) {
 		buf := make([]byte, 1024)
 		n, err := conn.Read(buf)
 		if err != nil {
-			// 如果读取出错（例如，超时或连接被客户端关闭），就终止这个goroutine
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
+				continue
+			}
 			log.Println("读取数据失败 (客户端可能已断开):", err)
 			return
 		}
@@ -85,8 +87,6 @@ func handleConnection(conn net.Conn) {
 	}
 }
 
-// prepareResponse 生成一条符合协议的模拟数据
-// prepareResponse 生成一条符合协议的模拟数据
 func prepareResponse() []byte {
 	var response bytes.Buffer
 

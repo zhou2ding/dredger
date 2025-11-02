@@ -86,13 +86,11 @@ func main() {
 		}
 
 		var imported int
-		if strings.Contains(shipName, "敏龙") {
-			imported, err = importData(f, shipName, startDate, endData)
-		} else if strings.Contains(shipName, "华安龙") {
+		if strings.Contains(shipName, "华安龙") {
 			imported, err = importDataHualong(f, shipName, startDate, endData)
 		} else {
-			fmt.Printf("文件 %s 船名无法识别（不是敏龙也不是华安龙），跳过\n", filePath)
-			continue
+			imported, err = importData(f, shipName, startDate, endData)
+
 		}
 		f.Close()
 		if err != nil {
