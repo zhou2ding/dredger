@@ -185,7 +185,11 @@ func calParams(records []*model.DredgerDatum) (ParameterStats, int64) {
 
 				// 计算横移速度
 				transverseSpeed := distance / timeDiff
-				horizontalSpeeds[i] = transverseSpeed
+				if r.TransverseSpeed != 0 {
+					horizontalSpeeds[i] = r.TransverseSpeed
+				} else {
+					horizontalSpeeds[i] = transverseSpeed
+				}
 				warning = "横移速度为0，已通过绞刀位置重新计算"
 			} else {
 				horizontalSpeeds[i] = math.Abs(r.TransverseSpeed)
@@ -293,7 +297,11 @@ func calParamsHl(records []*model.DredgerDataHl) (ParameterStats, int64) {
 					timeDiff = 3
 				}
 				transverseSpeed := distance / timeDiff
-				horizontalSpeeds[i] = transverseSpeed
+				if r.TransverseSpeed != 0 {
+					horizontalSpeeds[i] = r.TransverseSpeed
+				} else {
+					horizontalSpeeds[i] = transverseSpeed
+				}
 				warning = "横移速度为0，已通过绞刀位置重新计算"
 			} else {
 				horizontalSpeeds[i] = math.Abs(r.TransverseSpeed)
