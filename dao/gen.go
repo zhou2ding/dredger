@@ -18,6 +18,7 @@ import (
 var (
 	Q                  = new(Query)
 	DataDate           *dataDate
+	DbMigration        *dbMigration
 	DredgerDataHl      *dredgerDataHl
 	DredgerDatum       *dredgerDatum
 	SoilRegion         *soilRegion
@@ -27,6 +28,7 @@ var (
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
 	DataDate = &Q.DataDate
+	DbMigration = &Q.DbMigration
 	DredgerDataHl = &Q.DredgerDataHl
 	DredgerDatum = &Q.DredgerDatum
 	SoilRegion = &Q.SoilRegion
@@ -37,6 +39,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
 		db:                 db,
 		DataDate:           newDataDate(db, opts...),
+		DbMigration:        newDbMigration(db, opts...),
 		DredgerDataHl:      newDredgerDataHl(db, opts...),
 		DredgerDatum:       newDredgerDatum(db, opts...),
 		SoilRegion:         newSoilRegion(db, opts...),
@@ -48,6 +51,7 @@ type Query struct {
 	db *gorm.DB
 
 	DataDate           dataDate
+	DbMigration        dbMigration
 	DredgerDataHl      dredgerDataHl
 	DredgerDatum       dredgerDatum
 	SoilRegion         soilRegion
@@ -60,6 +64,7 @@ func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
 		db:                 db,
 		DataDate:           q.DataDate.clone(db),
+		DbMigration:        q.DbMigration.clone(db),
 		DredgerDataHl:      q.DredgerDataHl.clone(db),
 		DredgerDatum:       q.DredgerDatum.clone(db),
 		SoilRegion:         q.SoilRegion.clone(db),
@@ -79,6 +84,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
 		db:                 db,
 		DataDate:           q.DataDate.replaceDB(db),
+		DbMigration:        q.DbMigration.replaceDB(db),
 		DredgerDataHl:      q.DredgerDataHl.replaceDB(db),
 		DredgerDatum:       q.DredgerDatum.replaceDB(db),
 		SoilRegion:         q.SoilRegion.replaceDB(db),
@@ -88,6 +94,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 
 type queryCtx struct {
 	DataDate           IDataDateDo
+	DbMigration        IDbMigrationDo
 	DredgerDataHl      IDredgerDataHlDo
 	DredgerDatum       IDredgerDatumDo
 	SoilRegion         ISoilRegionDo
@@ -97,6 +104,7 @@ type queryCtx struct {
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
 		DataDate:           q.DataDate.WithContext(ctx),
+		DbMigration:        q.DbMigration.WithContext(ctx),
 		DredgerDataHl:      q.DredgerDataHl.WithContext(ctx),
 		DredgerDatum:       q.DredgerDatum.WithContext(ctx),
 		SoilRegion:         q.SoilRegion.WithContext(ctx),
